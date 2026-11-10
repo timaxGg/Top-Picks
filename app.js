@@ -94,7 +94,7 @@ function meinGeaendert(){MEIN.updatedAt=Date.now();merkeLokal();clearTimeout(mei
 async function ghC(path,opt){const r=await fetch(`https://api.github.com/repos/${repo()}/contents/${path}${opt?"":"?ref=main"}`,Object.assign({headers:{Authorization:`Bearer ${SET.ghToken}`,Accept:"application/vnd.github+json"}},opt||{}));
   if(r.status===404)return null;if(!r.ok)throw new Error("GitHub "+r.status);return r.json()}
 async function pushMein(){if(!syncOn())return;try{const cur=await ghC("data/top.enc");
-    await ghC("data/top.enc",{method:"PUT",body:JSON.stringify({message:"Top-Aktien: Merkliste und Depot",content:btoa(await encJ({merk:MEIN.merk,depot:MEIN.depot,updatedAt:MEIN.updatedAt},SET.syncPass)),sha:cur?cur.sha:undefined,branch:"main"})});
+    await ghC("data/top.enc",{method:"PUT",body:JSON.stringify({message:"Top-Aktien: Merkliste und Depot",content:btoa(await encJ({merk:MEIN.merk,depot:MEIN.depot,ziel:MEIN.ziel,updatedAt:MEIN.updatedAt},SET.syncPass)),sha:cur?cur.sha:undefined,branch:"main"})});
     MEIN.sync=Date.now();merkeLokal();wecken(true)}catch(e){toast("Abgleich nicht möglich: "+e.message)}}
 async function pullMein(){if(!syncOn())return;try{const r=await ghC("data/top.enc");if(!r)return;const m=await decJ(atob(r.content.replace(/\n/g,"")),SET.syncPass);
     if((m.updatedAt||0)>(MEIN.updatedAt||0)){MEIN=Object.assign({merk:[],depot:[]},m);merkeLokal();render()}}catch(e){}}
@@ -125,11 +125,48 @@ function seiteMeine(){const dep=MEIN.depot,mk=MEIN.merk;
      ${sc.warn?`<p class="small down"><b>Schutzlinie unterschritten.</b> Der Bot hat dich gewarnt. Mit OK in Telegram setzt du den Schutz neu.</p>`:""}
      <div style="display:flex;gap:8px;margin-top:8px">${x?`<button class="btn ghost" data-open="${esc(d.s)}" data-h="${w.H}">Details</button>`:""}<button class="btn ghost" data-pos-del="${d.id}">Entfernen</button></div></div>`};
   return `${syncOn()?"":`<div class="card small">Ohne <b>GitHub-Token und Sync-Passwort</b> in der Haupt-App bleibt alles nur auf diesem Handy, und der Bot kann dich nicht warnen. Trag beides in der Haupt-App unter Einstellungen ein.</div>`}
+  ${zielSeite()}
   <h2>Mein Top-Depot</h2>${dep.length?dep.map(pos).join(""):`<div class="card small muted">Noch nichts übernommen. Öffne eine Aktie und tippe auf „Übernehmen“, wenn du sie gekauft hast.</div>`}
   <p class="small muted">Gewinnschutz: Die Schutzlinie läuft mit deinem höchsten Plus seit Kauf mit (minus Abstand, nie unter 0). Fällt das Plus darunter, warnt der Bot. Verlustschutz: Warnung, sobald das Minus die Grenze erreicht, danach bei jedem weiteren 2 Prozentpunkten. Getrennt vom Depot im Aktien Helfer.</p>
   <h2>Gemerkt</h2><div class="card" style="padding:4px 12px">${mk.length?mk.map(m=>{const w=wert(m.s),x=w&&w.x,k=x&&kurs(x),d=x?dpVon(x,k.p):null,li=inListen(m.s);
     return `<div class="row"${w?` data-open="${esc(m.s)}" data-h="${w.H}"`:""}><div class="nm"><b style="font-size:14.5px">${esc(m.n)}</b><span>${esc(m.s)}${li.length?" · "+li.join(", "):" · gerade in keiner Liste"}</span></div>
      ${x?`<div class="px"><span data-px="${esc(m.s)}">${dez(k.p)} ${cs(x)}</span><small data-dp="${esc(m.s)}" class="${kl(d)}">${pz(d)} heute</small></div>`:`<div class="px small muted">Kurs folgt</div>`}<button class="icon-btn klein" data-merk="${esc(m.s)}" aria-label="Nicht mehr merken">✕</button></div>`}).join(""):`<p class="small muted">Tippe bei einer Aktie auf „☆ Merken“.</p>`}</div>`}
+
+
+/* ---------- Mein Ziel: einstellbar, ehrlich gemessen, mit Tipps aus den echten Zahlen ---------- */
+const JE={tag:{n:"pro Tag",t:1},woche:{n:"pro Woche",t:5},monat:{n:"pro Monat",t:21}};
+const proTag=(r,tage)=>(Math.pow(1+r/100,1/tage)-1)*100;         // Ergebnis über mehrere Handelstage auf einen Tag umgerechnet
+const jahr=tagProz=>(Math.pow(1+tagProz/100,250)-1)*100;          // wie viel das im Jahr wäre
+function zielSeite(){const Z=MEIN.ziel||{wert:1,je:"tag"},zt=proTag(Z.wert,JE[Z.je].t),jz=jahr(zt),T=(D&&D.test&&D.test.h)||{},F=(D&&D.bilanz&&D.bilanz.fertig)||{},tips=[];
+  // Was haben Liste (Rückblick-Test) und echte Listen pro Tag gebracht?
+  const zeilen=(D?D.horizonte:[]).map(H=>{const t=T[H]||{},f=F[H]||{},testT=t.tage?proTag(t.topAvg,H):null,liveT=f.n?proTag(f.avg,H):null,
+      quote=f.werte&&f.werte.length?Math.round(f.werte.filter(r=>proTag(r,H)>=zt).length/f.werte.length*100):null,
+      tq=t.zielQuote?(()=>{const k=Object.keys(t.zielQuote).map(Number).sort((a,b)=>a-b).filter(x=>x<=zt).pop();return k!=null?{ab:k,q:t.zielQuote[k]}:null})():null;
+      return {H,testT,liveT,quote,tq,f,t}});
+  // Top-Depot: Ergebnis seit Kauf, auf Tage umgerechnet (grob, Währungen nicht umgerechnet)
+  const pos=MEIN.depot.map(d=>{const w=wert(d.s),sc=SCHUTZ[d.id]||{},p=w?kurs(w.x).p:(sc.p||d.k),tage=Math.max(1,Math.round((Date.now()-d.t)/864e5*5/7));return {d,ch:(p/d.k-1)*100,tage,wertNow:p*d.q,inListe:inListen(d.s).length>0}});
+  const einsatz=pos.reduce((a,x)=>a+x.d.k*x.d.q,0),depR=einsatz?pos.reduce((a,x)=>a+x.ch*x.d.k*x.d.q,0)/einsatz:null,depTage=pos.length?Math.max(...pos.map(x=>x.tage)):0,depT=depR!=null?proTag(depR,depTage):null;
+  // Tipps, nur aus den Zahlen abgeleitet
+  if(zt>0.3)tips.push(["warn",`Dein Ziel entspricht ${nf(zt,2)} % pro Handelstag, also etwa ${jz>1e5?"mehr als dem 1000-Fachen":"dem "+nf(jz/100+1,0)+"-Fachen"} im Jahr. Der Aktienmarkt bringt langfristig etwa 7–10 % im Jahr. Ein Ziel um 0,05–0,1 % pro Tag (etwa 1–2 % pro Monat) wäre schon sehr ehrgeizig.`]);
+  const best=zeilen.filter(z=>z.testT!=null).sort((a,b)=>b.testT-a.testT)[0];
+  if(best)tips.push(["info",`Im Rückblick-Test brachte die ${best.H}-Tage-Liste am meisten pro Tag: ${pz(best.testT,3)} (Top ${D.top}, nach Kosten). ${best.t.besser>=55?`Sie lag an ${best.t.besser} % der Tage vor dem Durchschnitt.`:"Sie lag aber kaum öfter vorn als der Durchschnitt."} Wenn du dich an einer Liste orientierst, dann am ehesten an dieser.`]);
+  const kurz=zeilen.find(z=>z.H===3);if(kurz&&kurz.testT!=null&&best&&best.H!==3)tips.push(["info",`Kurz traden kostet mehr: Jeder Kauf und Verkauf kostet Gebühren und Spread. Bei der 3-Tage-Liste fallen sie dreimal so oft an wie bei längeren Zeiträumen, das frisst einen großen Teil vom Gewinn.`]);
+  if(pos.length){const ohneGS=pos.filter(x=>x.d.nl===0),weit=pos.filter(x=>Math.abs(x.d.a??10)>15),draussen=pos.filter(x=>!x.inListe&&x.ch<0&&x.tage>=5),gross=einsatz?pos.filter(x=>x.d.k*x.d.q/einsatz>.5&&pos.length>1):[];
+    if(ohneGS.length)tips.push(["tipp",`Gewinnschutz ist aus bei ${ohneGS.map(x=>x.d.n).join(", ")}. Wer ein Tagesziel hat, sollte Gewinne sichern, statt sie wieder abzugeben.`]);
+    if(weit.length)tips.push(["tipp",`Sehr weiter Verlustschutz (über 15 %) bei ${weit.map(x=>x.d.n).join(", ")}. Ein großes Minus braucht ein noch größeres Plus zum Ausgleich: −20 % holst du erst mit +25 % wieder auf.`]);
+    if(draussen.length)tips.push(["tipp",`${draussen.map(x=>x.d.n).join(", ")} ${draussen.length>1?"sind":"ist"} im Minus und in keiner aktuellen Liste mehr. Prüfe, ob der Grund für den Kauf noch gilt.`]);
+    if(gross.length)tips.push(["tipp",`${gross.map(x=>x.d.n).join(", ")} macht mehr als die Hälfte deines Top-Depots aus. Verteilt auf mehrere Werte schwankt das Depot weniger.`]);
+    if(depT!=null&&depT<zt)tips.push(["info",`Dein Top-Depot liegt bei etwa ${pz(depT,2)} pro Handelstag, dein Ziel bei ${pz(zt,2)}. Bitte nicht versuchen, die Lücke mit höherem Einsatz oder Hebelprodukten zu schließen: Das vergrößert vor allem das Risiko.`])}
+  else tips.push(["tipp","Noch nichts übernommen. Tipp: Probier die Listen erst ein paar Wochen nur mit „Merken“ aus und schau, ob die Zahlen in der Bilanz halten, bevor echtes Geld drinsteckt."]);
+  tips.push(["tipp","Plane vor jedem Kauf, wann du verkaufst: Ziel, Stop und Zeitraum. Der Gewinn- und Verlustschutz hier hilft dabei, die Entscheidung triffst aber du."]);
+  return `<h2>🎯 Mein Ziel</h2><div class="card ziel"><form onsubmit="return false" class="zielform"><label class="f">Gewinn-Ziel in %<input id="z-wert" type="number" inputmode="decimal" step="any" min="0" value="${Z.wert}"></label>
+   <label class="f">Zeitraum<select id="z-je">${Object.entries(JE).map(([k,v])=>`<option value="${k}"${Z.je===k?" selected":""}>${v.n}</option>`).join("")}</select></label><button class="btn" data-ziel>Speichern</button></form>
+   <p class="small">Das sind <b>${pz(zt,2)}</b> pro Handelstag, aufs Jahr gerechnet etwa <b>${jz>1e6?"über 1.000.000 %":pz(jz,0)}</b>.</p>
+   <table><tr><th>Liste</th><th>Test pro Tag</th><th>echt pro Tag</th><th>Ziel erreicht</th></tr>${zeilen.map(z=>`<tr><td>${z.H} Tage</td><td class="${kl(z.testT)}">${z.testT!=null?pz(z.testT,3):"–"}</td><td class="${kl(z.liveT)}">${z.liveT!=null?pz(z.liveT,3):"–"}</td><td>${z.quote!=null?z.quote+" %":z.tq?`Test: ${z.tq.q} %`:"–"}</td></tr>`).join("")}
+   ${depT!=null?`<tr><td>Mein Top-Depot</td><td>–</td><td class="${kl(depT)}">${pz(depT,3)}</td><td>${depT>=zt?"ja":"nein"}</td></tr>`:""}</table>
+   <p class="small muted">„Ziel erreicht“: Anteil der abgerechneten Listenwerte, die pro Tag mindestens dein Ziel gebracht haben (vor den ersten Abrechnungen: Rückblick-Test, grob gerechnet). Depot grob: Währungen nicht umgerechnet.</p>
+   <h3>Tipps und Empfehlungen</h3><ul class="tips">${tips.map(([k,t])=>`<li class="${k}">${esc(t)}</li>`).join("")}</ul>
+   <p class="small muted">Tipps aus deinen Zahlen und dem Rückblick-Test. Keine Anlageberatung.</p></div>`}
 
 /* ---------- Seiten ---------- */
 function leer(){if(ladeFehler==="repo")return `<div class="card empty"><b>Repository unbekannt</b><p class="muted">Öffne die App über deine GitHub-Pages-Adresse oder trag in der Haupt-App dein GitHub-Repository ein.</p><a class="btn ghost" href="${HAUPT_APP}">Zur Haupt-App</a></div>`;
@@ -251,7 +288,8 @@ async function entscheiden(id,antwort){const r=repo();if(!SET.ghToken||!r)return
 async function wecken(still){const r=repo();if(!SET.ghToken||!r)return toast("Dafür braucht die Haupt-App einen GitHub-Token.");
   try{const x=await fetch(`https://api.github.com/repos/${r}/actions/workflows/wachmann.yml/dispatches`,{method:"POST",headers:{Authorization:`Bearer ${SET.ghToken}`,Accept:"application/vnd.github+json"},body:JSON.stringify({ref:"main"})});
     if(!still)toast(x.status===204?"Wachmann gestartet. Neue Werte in etwa 2–5 Minuten.":"Start nicht möglich (GitHub "+x.status+")");if(x.status===204)[120,240,360].forEach(s=>setTimeout(()=>laden(true),s*1000))}catch(e){toast("Keine Verbindung zu GitHub")}}
-document.addEventListener("click",e=>{const t=e.target.closest("[data-merk],[data-uebern],[data-uebern-zeig],[data-step],[data-pos-del],[data-ent],[data-tab],[data-f],[data-open],[data-zu],[data-wecken],#refresh,#sheet-bg");if(!t)return;
+document.addEventListener("click",e=>{const t=e.target.closest("[data-ziel],[data-merk],[data-uebern],[data-uebern-zeig],[data-step],[data-pos-del],[data-ent],[data-tab],[data-f],[data-open],[data-zu],[data-wecken],#refresh,#sheet-bg");if(!t)return;
+  if(t.hasAttribute("data-ziel")){const w=+String($("#z-wert").value).replace(",",".");if(!(w>0))return toast("Bitte ein Ziel über 0 eintragen.");MEIN.ziel={wert:w,je:$("#z-je").value};meinGeaendert();render();toast("Ziel gespeichert");return}
   if(t.dataset.merk){e.stopPropagation();merken(t.dataset.merk,t.dataset.n);if(offenS)detail(offenS.s,offenS.H,true);return}
   if(t.hasAttribute("data-uebern-zeig")){const f=t.closest(".mein").querySelector(".uebern");f.hidden=!f.hidden;return}
   if(t.dataset.uebern){const f=t.closest("form"),v=n=>+String(f.elements[n].value).replace(",",".");const k=v("k"),q=v("q");if(!(k>0)||!(q>0))return toast("Bitte Kaufkurs und Stück eintragen.");
