@@ -1,0 +1,26 @@
+<!doctype html><html lang="de"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Top-Aktien</title><meta name="theme-color" content="#0e1426">
+<link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon-192.png"><link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="Top-Aktien">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap">
+<link rel="stylesheet" href="style.css?v=4"></head><body>
+<div class="wrap">
+  <header class="top">
+    <div class="hi"><div class="brand">Top-Aktien</div><div class="status" id="status">Lade …</div></div>
+    <button class="icon-btn" id="refresh" aria-label="Aktualisieren"><svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></svg></button>
+  </header>
+  <div class="live" id="live"></div>
+  <main id="view"></main>
+  <p class="foot">Rangliste aus Kursdaten, von der KI mit Quellen geprüft und an den Kursen des letzten Jahres getestet. Vergangene Ergebnisse sind keine Garantie. Keine Anlageberatung.</p>
+</div>
+<nav class="tabs" aria-label="Zeiträume"><div class="in">
+  <button data-tab="3"><b>3</b>Tage</button>
+  <button data-tab="7"><b>7</b>Tage</button>
+  <button data-tab="30"><b>30</b>Tage</button>
+  <button data-tab="bilanz"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Bilanz</button>
+</div></nav>
+<div class="sheet-bg" id="sheet-bg"></div>
+<div class="sheet" id="sheet" role="dialog" aria-modal="true"></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script src="app.js?v=4"></script></body></html>
