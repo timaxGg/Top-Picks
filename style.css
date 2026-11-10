@@ -78,7 +78,7 @@ th:first-child,td:first-child{text-align:left}
 th{font-weight:600;color:var(--muted);font-size:11.5px}
 td{font-family:var(--f-mono);white-space:nowrap}td:first-child{font-family:var(--f-body)}
 .tabs{position:fixed;left:0;right:0;bottom:0;z-index:6;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
-.tabs .in{max-width:640px;margin:0 auto;display:grid;grid-template-columns:repeat(4,1fr)}
+.tabs .in{max-width:640px;margin:0 auto;display:grid;grid-template-columns:repeat(5,1fr)}
 .tabs button{border:0;background:none;padding:9px 0 8px;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:11.5px;font-weight:600;color:var(--muted)}
 .tabs button.on{color:var(--accent)}
 .sheet-bg{position:fixed;inset:0;background:#0009;opacity:0;pointer-events:none;transition:opacity .25s;z-index:9}
@@ -130,3 +130,14 @@ details summary{cursor:pointer}
 .upd.offen{border-color:var(--accent)}
 .upd h3{font:700 13.5px var(--f-body);margin:12px 0 4px}
 .urteil{font-size:13.5px;margin:10px 0}.warn{color:var(--warn)}
+
+.f{display:block;font-size:12.5px;color:var(--muted);margin:8px 0}
+.f input{display:block;width:100%;margin-top:4px;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--surface2);color:var(--fg);font:16px var(--f-mono)}
+.icon-btn.klein{width:32px;height:32px;border-radius:9px;flex:none;font-size:15px}
+.schutz{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.schutz>div{position:relative;background:var(--surface2);border-radius:10px;padding:8px 10px 34px}
+.schutz i{display:block;font-style:normal;font-size:11.5px;color:var(--muted)}
+.schutz b{display:block;font:600 13.5px var(--f-mono)}.schutz small{display:block;font-size:11px;color:var(--muted)}
+.step{position:absolute;left:8px;bottom:6px;display:flex;gap:6px}
+.step button{width:30px;height:24px;border-radius:7px;border:1px solid var(--line);background:var(--surface);font-weight:700}
+.pos.warnt{border-color:var(--down)}

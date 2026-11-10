@@ -31,7 +31,7 @@ function repo(){return SET.ghRepo||HAUPT_REPO}
 const kurseUrl=()=>repo()?`https://raw.githubusercontent.com/${repo()}/kurse/kurse.json?t=${Math.floor(Date.now()/6e4)}`:null;
 async function laden(still){const u=kurseUrl();if(!u){ladeFehler="repo";render();return}
   try{const r=await fetch(u,{cache:"no-store"});if(!r.ok)throw new Error("HTTP "+r.status);const k=await r.json();KQ=k.q||{};
-    if(k.sig&&k.sig.listen){const neu=!D||D.t!==k.sig.t;D=k.sig;ladeFehler="";if(neu||!still)render();else flush();usLive()}
+    if(k.sig&&k.sig.listen){const neu=!D||D.t!==k.sig.t;D=k.sig;ladeFehler="";await schutzLesen();if(neu||!still)render();else flush();usLive()}
     else{ladeFehler="leer";render()}}catch(e){ladeFehler="netz";if(!D)render();status()}}
 const alleWerte=()=>{if(!D)return [];const m=new Map();for(const H of D.horizonte)for(const x of [...(D.listen[H]||[]),...((D.weitere||{})[H]||[])])if(!m.has(x.s))m.set(x.s,x);return [...m.values()]};
 function kurs(w){const c=[{p:w.p,t:w.mt||0,src:"liste"}],q=KQ[w.s];if(q&&q.c)c.push({p:q.c,t:q.t||0,src:"kurse"});if(LIVE[w.s])c.push(LIVE[w.s]);return c.sort((a,b)=>b.t-a.t)[0]}
@@ -67,7 +67,7 @@ function testBox(H){const t=(D.test&&D.test.h||{})[H]||{};if(!t.tage)return `<di
   <p class="small muted">${gut?"Die Rechnung lag öfter vorn als nicht, aber längst nicht immer.":"Die Rechnung lag kaum öfter vorn als der Durchschnitt. Nimm die Liste als Ideensammlung, nicht als Vorhersage."} Die KI-Auswahl selbst wird ab jetzt unter „Bilanz“ gemessen.</p></div>`}
 function karte(x,H,voll){const k=kurs(x),d=dpVon(x,k.p),seit=x.p0?(k.p/x.p0-1)*100:null;
   return `<div class="card${voll?"":" tap"}" ${voll?"":`data-open="${esc(x.s)}" data-h="${H}"`}>
-  <div class="sig-top"><span class="rang">${x.platz}</span><div class="nm"><b>${esc(x.n)}</b><span>${x.typ==="e"?"<em class=\"etf\">ETF</em> ":""}${esc(x.s)}${x.zuversicht?` · Zuversicht ${esc(x.zuversicht)}`:""}${x.eigen?" · aus deinem Depot":""}</span></div>
+  <div class="sig-top">${x.platz?`<span class="rang">${x.platz}</span>`:""}<div class="nm"><b>${esc(x.n)}</b><span>${x.typ==="e"?"<em class=\"etf\">ETF</em> ":""}${esc(x.s)}${x.zuversicht?` · Zuversicht ${esc(x.zuversicht)}`:""}${x.eigen?" · aus deinem Depot":""}</span></div>
   <div class="px"><span data-px="${esc(x.s)}">${dez(k.p)} ${cs(x)}</span><small data-dp="${esc(x.s)}" class="${kl(d)}">${pz(d)} heute</small></div></div>
   <div class="lv">
    <div><i>Seit Liste</i><b>${seit!=null?`<span data-seit="${esc(x.s)}" data-p0="${x.p0}" class="${kl(seit)}">${pz(seit)}</span>`:"–"}</b></div>
@@ -78,6 +78,58 @@ function karte(x,H,voll){const k=kurs(x),d=dpVon(x,k.p),seit=x.p0?(k.p/x.p0-1)*1
   ${x.warum?`<p class="warum">${esc(voll?x.warum:String(x.warum).split(/(?<=[.!?])\s/).slice(0,2).join(" "))}</p>`:`<p class="small muted">KI-Recherche steht noch aus. Platz aus der Kurs-Rechnung.</p>`}
   ${x.quellen&&x.quellen.length&&!voll?`<p class="small muted">${x.quellen.length} ${x.quellen.length===1?"Quelle":"Quellen"} · Tippen für Details</p>`:""}
   <div class="small muted" data-q="${esc(x.s)}" style="text-align:right">${esc(quelle(x,k))}</div></div>`}
+
+
+/* ---------- Meine: Merkliste und übernommene Aktien (eigenes Depot dieser App) ---------- */
+// Lokal gespeichert und zusätzlich verschlüsselt (Sync-Passwort der Haupt-App) als data/top.enc im Haupt-Repository,
+// damit der Bot Gewinnschutz und Verlustschutz überwachen kann. Getrennt vom Depot des Aktien Helfers.
+const te=new TextEncoder(),td=new TextDecoder(),b64=u=>btoa(String.fromCharCode(...u)),unb64=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
+async function cKey(pass,salt){const k=await crypto.subtle.importKey("raw",te.encode(pass),"PBKDF2",false,["deriveKey"]);return crypto.subtle.deriveKey({name:"PBKDF2",salt,iterations:150000,hash:"SHA-256"},k,{name:"AES-GCM",length:256},false,["encrypt","decrypt"])}
+async function encJ(o,pass){const sa=crypto.getRandomValues(new Uint8Array(16)),iv=crypto.getRandomValues(new Uint8Array(12));const c=await crypto.subtle.encrypt({name:"AES-GCM",iv},await cKey(pass,sa),te.encode(JSON.stringify(o)));return JSON.stringify({v:1,s:b64(sa),i:b64(iv),c:b64(new Uint8Array(c))})}
+async function decJ(t,pass){const o=typeof t==="string"?JSON.parse(t):t;return JSON.parse(td.decode(await crypto.subtle.decrypt({name:"AES-GCM",iv:unb64(o.i)},await cKey(pass,unb64(o.s)),unb64(o.c))))}
+let MEIN={merk:[],depot:[],updatedAt:0},SCHUTZ={};try{Object.assign(MEIN,JSON.parse(localStorage.getItem("kah-top-mein")||"{}"))}catch(e){}
+const syncOn=()=>!!(SET.ghToken&&SET.syncPass&&repo());
+const merkeLokal=()=>{try{localStorage.setItem("kah-top-mein",JSON.stringify(MEIN))}catch(e){}};
+function meinGeaendert(){MEIN.updatedAt=Date.now();merkeLokal();clearTimeout(meinGeaendert.t);meinGeaendert.t=setTimeout(pushMein,1500)}
+async function ghC(path,opt){const r=await fetch(`https://api.github.com/repos/${repo()}/contents/${path}${opt?"":"?ref=main"}`,Object.assign({headers:{Authorization:`Bearer ${SET.ghToken}`,Accept:"application/vnd.github+json"}},opt||{}));
+  if(r.status===404)return null;if(!r.ok)throw new Error("GitHub "+r.status);return r.json()}
+async function pushMein(){if(!syncOn())return;try{const cur=await ghC("data/top.enc");
+    await ghC("data/top.enc",{method:"PUT",body:JSON.stringify({message:"Top-Aktien: Merkliste und Depot",content:btoa(await encJ({merk:MEIN.merk,depot:MEIN.depot,updatedAt:MEIN.updatedAt},SET.syncPass)),sha:cur?cur.sha:undefined,branch:"main"})});
+    MEIN.sync=Date.now();merkeLokal();wecken(true)}catch(e){toast("Abgleich nicht möglich: "+e.message)}}
+async function pullMein(){if(!syncOn())return;try{const r=await ghC("data/top.enc");if(!r)return;const m=await decJ(atob(r.content.replace(/\n/g,"")),SET.syncPass);
+    if((m.updatedAt||0)>(MEIN.updatedAt||0)){MEIN=Object.assign({merk:[],depot:[]},m);merkeLokal();render()}}catch(e){}}
+async function schutzLesen(){if(D&&D.schutz&&SET.syncPass){try{SCHUTZ=await decJ(D.schutz,SET.syncPass)}catch(e){SCHUTZ={}}}}
+const istGemerkt=s=>MEIN.merk.some(m=>m.s===s);
+function wert(s){if(!D)return null;for(const H of D.horizonte){const x=(D.listen[H]||[]).find(y=>y.s===s);if(x)return {x,H}}const m=(D.meine||{})[s];return m?{x:m,H:7}:null}
+function merken(s,n){if(istGemerkt(s)){MEIN.merk=MEIN.merk.filter(m=>m.s!==s);toast("Nicht mehr gemerkt")}else{MEIN.merk.push({s,n:n||s,t:Date.now()});toast("Gemerkt. Findest du unter „Meine“.")}meinGeaendert();render()}
+function inListen(s){return D?D.horizonte.map(H=>{const x=(D.listen[H]||[]).find(y=>y.s===s);return x?`${H} T. Platz ${x.platz}`:""}).filter(Boolean):[]}
+function meinBox(x){const pos=MEIN.depot.filter(d=>d.s===x.s),k=kurs(x),al=Math.abs(SET.alertDefault??-10),nl=SET.nlDefault??.5;
+  return `<div class="card mein"><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn ${istGemerkt(x.s)?"ghost":""}" data-merk="${esc(x.s)}" data-n="${esc(x.n)}">${istGemerkt(x.s)?"★ Gemerkt":"☆ Merken"}</button>
+   <button class="btn ghost" data-uebern-zeig>${pos.length?"Weitere Stücke übernehmen":"Übernehmen"}</button></div>
+   ${pos.length?`<p class="small">In deinem Top-Depot: ${pos.map(d=>`${nf(d.q,d.q%1?2:0)} Stk. zu ${dez(d.k)} ${cs(x)}`).join(", ")}</p>`:""}
+   <form class="uebern" hidden onsubmit="return false"><p class="small muted" style="margin-top:10px">Übernehmen heißt: Du hast die Aktie gekauft und trägst sie hier ein. Der Bot überwacht dann Gewinn- und Verlustschutz und warnt dich in Telegram.</p>
+    <label class="f">Kaufkurs (${cs(x)})<input name="k" type="number" inputmode="decimal" step="any" min="0" value="${(+k.p).toFixed(k.p>=1?2:4)}"></label>
+    <label class="f">Stück<input name="q" type="number" inputmode="decimal" step="any" min="0" value="1"></label>
+    <label class="f">Verlustschutz: warnen ab Minus von (%)<input name="a" type="number" inputmode="decimal" step="any" min="0" value="${al}"></label>
+    <label class="f">Gewinnschutz: Abstand zum Höchstwert (Prozentpunkte, 0 = aus)<input name="nl" type="number" inputmode="decimal" step="any" min="0" value="${nl}"></label>
+    <button class="btn" data-uebern="${esc(x.s)}" data-n="${esc(x.n)}" data-cur="${esc(x.cur||"")}">In mein Top-Depot übernehmen</button></form></div>`}
+function seiteMeine(){const dep=MEIN.depot,mk=MEIN.merk;
+  const pos=d=>{const w=wert(d.s),x=w?w.x:null,sc=SCHUTZ[d.id]||{},p=x?kurs(x).p:(sc.p||d.k),ch=(p/d.k-1)*100,c=x?cs(x):(CS[d.cur]||d.cur||""),a=-Math.abs(d.a??10),warnV=ch<=a,gs=d.nl!==0;
+    return `<div class="card pos${sc.warn||warnV?" warnt":""}"><div class="sig-top"><div class="nm"><b>${esc(d.n)}</b><span>${esc(d.s)} · ${nf(d.q,d.q%1?2:0)} Stk. · Kauf ${dez(d.k)} ${c} · seit ${datum(new Date(d.t).toISOString().slice(0,10))}</span></div>
+     <div class="px"><span>${dez(p)} ${c}</span><small class="${kl(ch)}">${pz(ch)} seit Kauf</small></div></div>
+     <div class="small ${kl(ch)}" style="text-align:right">${(p-d.k)*d.q>=0?"+":"−"}${nf(Math.abs((p-d.k)*d.q),2)} ${c}</div>
+     <div class="schutz"><div><i>🛡️ Gewinnschutz</i>${gs?`<b>${sc.lv!=null?`Schutzlinie ${pz(sc.lv)}`:"aktiv"}</b><small>${sc.ref!=null?`Höchststand ${pz(sc.ref)} · `:""}Abstand ${nf(d.nl>0?d.nl:.5,1)} Pkt.</small>`:"<b>aus</b>"}
+       <span class="step"><button data-step="${d.id}:nl:-0.5" aria-label="enger">−</button><button data-step="${d.id}:nl:0.5" aria-label="weiter">+</button></span></div>
+      <div><i>🔴 Verlustschutz</i>${d.a!==0?`<b>ab ${pz(a)}</b><small>${warnV?"Grenze erreicht":`noch ${nf(ch-a,1)} Pkt. Luft`}</small>`:"<b>aus</b>"}
+       <span class="step"><button data-step="${d.id}:a:-1" aria-label="enger">−</button><button data-step="${d.id}:a:1" aria-label="weiter">+</button></span></div></div>
+     ${sc.warn?`<p class="small down"><b>Schutzlinie unterschritten.</b> Der Bot hat dich gewarnt. Mit OK in Telegram setzt du den Schutz neu.</p>`:""}
+     <div style="display:flex;gap:8px;margin-top:8px">${x?`<button class="btn ghost" data-open="${esc(d.s)}" data-h="${w.H}">Details</button>`:""}<button class="btn ghost" data-pos-del="${d.id}">Entfernen</button></div></div>`};
+  return `${syncOn()?"":`<div class="card small">Ohne <b>GitHub-Token und Sync-Passwort</b> in der Haupt-App bleibt alles nur auf diesem Handy, und der Bot kann dich nicht warnen. Trag beides in der Haupt-App unter Einstellungen ein.</div>`}
+  <h2>Mein Top-Depot</h2>${dep.length?dep.map(pos).join(""):`<div class="card small muted">Noch nichts übernommen. Öffne eine Aktie und tippe auf „Übernehmen“, wenn du sie gekauft hast.</div>`}
+  <p class="small muted">Gewinnschutz: Die Schutzlinie läuft mit deinem höchsten Plus seit Kauf mit (minus Abstand, nie unter 0). Fällt das Plus darunter, warnt der Bot. Verlustschutz: Warnung, sobald das Minus die Grenze erreicht, danach bei jedem weiteren 2 Prozentpunkten. Getrennt vom Depot im Aktien Helfer.</p>
+  <h2>Gemerkt</h2><div class="card" style="padding:4px 12px">${mk.length?mk.map(m=>{const w=wert(m.s),x=w&&w.x,k=x&&kurs(x),d=x?dpVon(x,k.p):null,li=inListen(m.s);
+    return `<div class="row"${w?` data-open="${esc(m.s)}" data-h="${w.H}"`:""}><div class="nm"><b style="font-size:14.5px">${esc(m.n)}</b><span>${esc(m.s)}${li.length?" · "+li.join(", "):" · gerade in keiner Liste"}</span></div>
+     ${x?`<div class="px"><span data-px="${esc(m.s)}">${dez(k.p)} ${cs(x)}</span><small data-dp="${esc(m.s)}" class="${kl(d)}">${pz(d)} heute</small></div>`:`<div class="px small muted">Kurs folgt</div>`}<button class="icon-btn klein" data-merk="${esc(m.s)}" aria-label="Nicht mehr merken">✕</button></div>`}).join(""):`<p class="small muted">Tippe bei einer Aktie auf „☆ Merken“.</p>`}</div>`}
 
 /* ---------- Seiten ---------- */
 function leer(){if(ladeFehler==="repo")return `<div class="card empty"><b>Repository unbekannt</b><p class="muted">Öffne die App über deine GitHub-Pages-Adresse oder trag in der Haupt-App dein GitHub-Repository ein.</p><a class="btn ghost" href="${HAUPT_APP}">Zur Haupt-App</a></div>`;
@@ -94,7 +146,7 @@ function seiteListe(H){const l=D.listen[H]||[],ki=D.ki;
 function weitere(H){const l=((D.weitere||{})[H]||[]).filter(w=>P.f==="alle"||(P.f==="etf"?w.typ==="e":w.typ!=="e"));
   return `<h2>Weitere starke Werte aus allen ${D.werte}</h2><p class="small muted">Nur aus der Kurs-Rechnung, ohne KI-Recherche. Sortiert nach Punktzahl für ${H_TEXT[H]}.</p>
   <div class="filters">${[["alle","Alle"],["aktie","Aktien"],["etf","ETFs"]].map(([k,n])=>`<button data-f="${k}" class="${P.f===k?"on":""}">${n}</button>`).join("")}</div>
-  <div class="card" style="padding:4px 12px">${l.map(w=>{const k=kurs(w),d=dpVon(w,k.p);return `<div class="row"><span class="rang klein">${w.rang}</span><div class="nm"><b style="font-size:14.5px">${esc(w.n)}</b><span>${w.typ==="e"?"ETF · ":""}${esc(w.s)} · 4 Wo. ${pz(w.wochen4)} · 3 Mon. ${pz(w.monate3)}</span></div>
+  <div class="card" style="padding:4px 12px">${l.map(w=>{const k=kurs(w),d=dpVon(w,k.p);return `<div class="row"><span class="rang klein">${w.rang}</span><button class="icon-btn klein" data-merk="${esc(w.s)}" data-n="${esc(w.n)}" aria-label="Merken">${istGemerkt(w.s)?"★":"☆"}</button><div class="nm"><b style="font-size:14.5px">${esc(w.n)}</b><span>${w.typ==="e"?"ETF · ":""}${esc(w.s)} · 4 Wo. ${pz(w.wochen4)} · 3 Mon. ${pz(w.monate3)}</span></div>
    <div class="px"><span data-px="${esc(w.s)}">${dez(k.p)} ${cs(w)}</span><small data-dp="${esc(w.s)}" class="${kl(d)}">${pz(d)} heute</small></div></div>`}).join("")||`<p class="muted small">Keine Werte in dieser Auswahl.</p>`}</div>`}
 function seiteUpdates(){const V=D.vorschlag,mo=D.modell||{},pr=D.pruefung,par=mo.param||{};
   const tz=t=>`<tr><td>Ganzes Jahr</td><td>${pz(t.jahr.alt.vorsprung,2)}</td><td class="${t.jahr.neu.vorsprung>t.jahr.alt.vorsprung?"up":"down"}">${pz(t.jahr.neu.vorsprung,2)}</td><td>${t.jahr.alt.besser} % → ${t.jahr.neu.besser} %</td></tr>
@@ -139,7 +191,7 @@ function seiteBilanz(){const b=D.bilanz||{},f=b.fertig||{};
   <div class="card small"><b>Kurse</b><br>US-Aktien: ${SET.fhKey?"live über deinen Finnhub-Schlüssel.":"ohne Finnhub-Schlüssel alle 5–15 Minuten."} EU-Aktien: ca. 15 Minuten verzögert plus Takt des Wachmanns.<br><br><b>Telegram</b><br>/beste zeigt die Listen, /beste 7 nur einen Zeitraum, /warum NVDA die Begründung mit Quellen.
    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">${SET.ghToken&&repo()?`<button class="btn" data-wecken>Wachmann jetzt starten</button>`:""}<a class="btn ghost" href="${HAUPT_APP}">Zur Haupt-App</a></div></div>`}
 function render(){chips();status();$$(".tabs button").forEach(b=>b.classList.toggle("on",b.dataset.tab===P.tab));const v=$("#view");
-  if(!D){v.innerHTML=leer();return}v.innerHTML=P.tab==="bilanz"?seiteBilanz():seiteListe(+P.tab||3);if(offenS)detail(offenS.s,offenS.H,true)}
+  if(!D){v.innerHTML=leer();return}v.innerHTML=P.tab==="bilanz"?seiteBilanz():P.tab==="meine"?seiteMeine():seiteListe(+P.tab||3);if(offenS)detail(offenS.s,offenS.H,true)}
 function status(){const e=$("#status");if(!D){e.textContent=ladeFehler==="netz"?"Keine Verbindung":"Warte auf die erste Liste";return}
   e.textContent=`Aus ${D.werte} Aktien und ETFs · ${D.ki?"mit KI-Recherche":"nur Kurs-Rechnung"} · ${uhr(D.t)} Uhr${Date.now()-D.t>45*6e4?" (älter)":""}`}
 function chips(){const uo=usOffen();$("#live").innerHTML=`<span class="chip"><span class="dot ${!SET.fhKey?"mid":usStat==="Finnhub"?(uo?"on":"mid"):"off"}"></span>US ${!SET.fhKey?"5–15 Min.":usStat==="Finnhub"?(uo?"live":"Börse zu"):usStat==="aus"?"verbindet …":usStat}</span><span class="chip"><span class="dot mid"></span>EU ≈ 15 Min. verzögert</span>`}
@@ -169,13 +221,14 @@ function graph(x,H,klein){const c=(x.spark||[]).slice(klein?-30:-60);if(c.length
    <polyline points="${[...c,p].map((v,i)=>`${(i<n?X(i):xv).toFixed(1)},${Y(v).toFixed(1)}`).join(" ")}" fill="none" stroke="${col}" stroke-width="2.2" vector-effect="non-scaling-stroke"/></svg>
   ${klein?"":`<div class="legende"><span><i class="l-kurs" style="background:${col}"></i>Verlauf ${n} Handelstage</span><span><i class="l-band"></i>übliche Schwankung in ${H} Tagen (2 von 3 Fällen, hell: 19 von 20)</span>${t.tage?`<span><i class="l-test"></i>Ø der Top ${D.top} im Rückblick-Test (${pz(t.topAvg)})</span>`:""}${x.p0?`<span><i class="l-p0"></i>Kurs bei Veröffentlichung</span>`:""}${me!=null?`<span><i class="l-mu"></i>Muster-Erwartung (${pz(me)}, ⚠️ unsicher)</span>`:""}</div>
   <p class="small muted">Der Bereich rechts ist keine Vorhersage, sondern zeigt, wie weit der Kurs normalerweise schwankt. Die gestrichelte Linie ist das, was die Top ${D.top} dieses Zeitraums im letzten Jahr im Schnitt gebracht haben.</p>`}`}
-function detail(s,H,still){const x=(D.listen[H]||[]).find(y=>y.s===s);if(!x)return;offenS={s,H};const auch=D.horizonte.filter(h=>h!==H&&(D.listen[h]||[]).some(y=>y.s===s));
+function detail(s,H,still){const x=(D.listen[H]||[]).find(y=>y.s===s)||(D.meine||{})[s];if(!x)return;offenS={s,H};const auch=D.horizonte.filter(h=>h!==H&&(D.listen[h]||[]).some(y=>y.s===s));
   const li=(t,a)=>a&&a.length?`<h2>${t}</h2><ul class="why">${a.map(z=>`<li>${esc(z)}</li>`).join("")}</ul>`:"";
   $("#sheet").innerHTML=`<div class="grab"></div><div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><div class="brand" style="flex:1;font-size:19px">${esc(x.n)}</div><button class="icon-btn" data-zu aria-label="Schließen"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
   ${graph(x,H)}${karte(x,H,true)}
   ${x.ausblick?`<h2>Ausblick ${H_TEXT[H]}</h2><p>${esc(x.ausblick)}</p>`:""}
   ${x.szenarien&&(x.szenarien.gut||x.szenarien.schlecht)?`<div class="szen">${x.szenarien.gut?`<div class="gut"><i>Wenn es gut läuft</i>${esc(x.szenarien.gut)}</div>`:""}${x.szenarien.schlecht?`<div class="schlecht"><i>Was es kippen würde</i>${esc(x.szenarien.schlecht)}</div>`:""}</div>`:""}
-  <p class="small muted">Platz ${x.platz} für ${H_TEXT[H]}${x.rechenRang?` · Kurs-Rechnung: Platz ${x.rechenRang}`:""}${auch.length?` · auch in der Liste für ${auch.map(h=>h+" Tage").join(" und ")}`:""}</p>
+  ${meinBox(x)}
+  <p class="small muted">${x.platz?`Platz ${x.platz} für ${H_TEXT[H]}`:"Gerade in keiner Liste. Zahlen für 7 Handelstage"}${x.rechenRang?` · Kurs-Rechnung: Platz ${x.rechenRang}`:""}${auch.length?` · auch in der Liste für ${auch.map(h=>h+" Tage").join(" und ")}`:""}</p>
   ${musterBlock(x,H)}
   ${li("Was den Kurs antreiben kann",x.treiber)}${li("Risiken",x.risiken)}${li("Termine",x.termine)}
   <h2>Kennzahlen</h2><div class="kz">
@@ -198,7 +251,15 @@ async function entscheiden(id,antwort){const r=repo();if(!SET.ghToken||!r)return
 async function wecken(still){const r=repo();if(!SET.ghToken||!r)return toast("Dafür braucht die Haupt-App einen GitHub-Token.");
   try{const x=await fetch(`https://api.github.com/repos/${r}/actions/workflows/wachmann.yml/dispatches`,{method:"POST",headers:{Authorization:`Bearer ${SET.ghToken}`,Accept:"application/vnd.github+json"},body:JSON.stringify({ref:"main"})});
     if(!still)toast(x.status===204?"Wachmann gestartet. Neue Werte in etwa 2–5 Minuten.":"Start nicht möglich (GitHub "+x.status+")");if(x.status===204)[120,240,360].forEach(s=>setTimeout(()=>laden(true),s*1000))}catch(e){toast("Keine Verbindung zu GitHub")}}
-document.addEventListener("click",e=>{const t=e.target.closest("[data-ent],[data-tab],[data-f],[data-open],[data-zu],[data-wecken],#refresh,#sheet-bg");if(!t)return;
+document.addEventListener("click",e=>{const t=e.target.closest("[data-merk],[data-uebern],[data-uebern-zeig],[data-step],[data-pos-del],[data-ent],[data-tab],[data-f],[data-open],[data-zu],[data-wecken],#refresh,#sheet-bg");if(!t)return;
+  if(t.dataset.merk){e.stopPropagation();merken(t.dataset.merk,t.dataset.n);if(offenS)detail(offenS.s,offenS.H,true);return}
+  if(t.hasAttribute("data-uebern-zeig")){const f=t.closest(".mein").querySelector(".uebern");f.hidden=!f.hidden;return}
+  if(t.dataset.uebern){const f=t.closest("form"),v=n=>+String(f.elements[n].value).replace(",",".");const k=v("k"),q=v("q");if(!(k>0)||!(q>0))return toast("Bitte Kaufkurs und Stück eintragen.");
+    MEIN.depot.push({id:"p"+Date.now().toString(36),s:t.dataset.uebern,n:t.dataset.n,cur:t.dataset.cur,k,q,a:Math.abs(v("a")||0),nl:Math.max(0,v("nl")||0),t:Date.now()});
+    if(!istGemerkt(t.dataset.uebern))MEIN.merk.push({s:t.dataset.uebern,n:t.dataset.n,t:Date.now()});meinGeaendert();toast(syncOn()?"Übernommen. Der Bot überwacht ab dem nächsten Lauf.":"Übernommen (nur auf diesem Handy).");detail(offenS.s,offenS.H,true);return}
+  if(t.dataset.step){const [id,f,dlt]=t.dataset.step.split(":"),d=MEIN.depot.find(x=>x.id===id);if(!d)return;
+    if(f==="nl")d.nl=Math.max(0,+((d.nl>0?d.nl:d.nl===0?0:.5)+ +dlt).toFixed(1));else d.a=Math.max(0,Math.abs(d.a??10)+ +dlt);meinGeaendert();render();return}
+  if(t.dataset.posDel){const d=MEIN.depot.find(x=>x.id===t.dataset.posDel);if(d&&confirm(`${d.n} aus deinem Top-Depot entfernen? Der Bot überwacht die Aktie dann nicht mehr.`)){MEIN.depot=MEIN.depot.filter(x=>x!==d);meinGeaendert();render()}return}
   if(t.dataset.ent){entscheiden(t.dataset.id,t.dataset.ent);return}
   if(t.dataset.tab){P.tab=t.dataset.tab;saveP();render();scrollTo(0,0)}
   else if(t.dataset.f){P.f=t.dataset.f;saveP();const y=scrollY;render();scrollTo(0,y)}
@@ -209,7 +270,7 @@ document.addEventListener("click",e=>{const t=e.target.closest("[data-ent],[data
 document.addEventListener("visibilitychange",()=>{if(!document.hidden)laden(true)});
 
 /* ---------- Start ---------- */
-(async()=>{const h=decodeURIComponent(location.hash||"");render();await laden();
-  if(h.startsWith("#s-")&&D){const s=h.slice(3),H=D.horizonte.find(x=>(D.listen[x]||[]).some(y=>y.s===s));history.replaceState(null,"",location.pathname);if(H){P.tab=String(H);render();detail(s,H)}}
+(async()=>{const h=decodeURIComponent(location.hash||"");render();await Promise.all([laden(),pullMein()]);
+  if(h.startsWith("#s-")&&D){const s=h.slice(3),w=wert(s);history.replaceState(null,"",location.pathname);if(w){P.tab=(D.listen[w.H]||[]).some(y=>y.s===s)?String(w.H):"meine";render();detail(s,w.H)}}
   setInterval(()=>{if(!document.hidden)laden(true)},6e4);setInterval(()=>{if(!document.hidden){if(SET.fhKey&&!wsF){fhRest=0;usLive()}chips();flush()}},6e4)})();
 if("serviceWorker" in navigator)navigator.serviceWorker.register("sw.js",{scope:"./"}).catch(()=>{});
