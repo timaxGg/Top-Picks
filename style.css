@@ -154,3 +154,7 @@ details summary{cursor:pointer}
 .rbar{height:6px;border-radius:3px;background:var(--surface2);margin:10px 0 6px;overflow:hidden}.rbar span{display:block;height:100%;background:linear-gradient(90deg,var(--up),var(--warn) 45%,var(--down))}
 .risk.hoch .rst{color:var(--down)}.risk.mittel .rst{color:var(--warn)}.risk.niedrig .rst{color:var(--up)}.rst{font-size:13.5px}
 .tabs button{position:relative}.tabs button.alarm:after{content:"";position:absolute;top:6px;right:calc(50% - 18px);width:9px;height:9px;border-radius:50%;background:var(--down);border:2px solid var(--bg)}
+
+.huerde{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;font-size:11px;color:var(--muted);margin:0 0 8px}
+.huerde span{background:var(--surface2);border-radius:10px;padding:6px 8px}.huerde b{display:block;font:600 13px var(--f-mono);color:var(--fg)}
+.huerde.knapp span:nth-child(3) b{color:var(--warn)}.huerde.ok span:nth-child(3) b{color:var(--up)}

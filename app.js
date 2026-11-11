@@ -61,9 +61,10 @@ const H_TEXT={3:"3 Handelstage",7:"7 Handelstage",30:"30 Handelstage"};
 function testBox(H){const t=(D.test&&D.test.h||{})[H]||{};if(!t.tage)return `<div class="card small muted">Der Rückblick-Test läuft, sobald alle Kursverläufe geladen sind.</div>`;
   const gut=t.besser>=55&&t.topAvg>t.alleAvg;
   return `<div class="card test-k"><b>Wie gut war diese Rechnung im letzten Jahr?</b>
-  <p class="small">An ${t.tage} Handelstagen jeweils die Top ${D.top} gekauft und nach ${H} Tagen verkauft (nach Kosten):</p>
+  <p class="small">An ${t.tage} Handelstagen jeweils die Top ${D.top} gekauft und nach ${H} Tagen verkauft (Kosten ${D.kostenRT!=null?pz(D.kostenRT,2).replace("+",""):""} je Kauf und Verkauf zusammen):</p>
   <div class="kz"><div><i>Top ${D.top} im Schnitt</i><b class="${kl(t.topAvg)}">${pz(t.topAvg,2)}</b></div><div><i>alle ${D.werte} Werte im Schnitt</i><b class="${kl(t.alleAvg)}">${pz(t.alleAvg,2)}</b></div>
-  <div><i>Tage, an denen die Top ${D.top} vorn lagen</i><b>${t.besser} %</b></div><div><i>Einzelwerte im Plus</i><b>${t.plus} %</b></div></div>
+  <div><i>Tage, an denen die Top ${D.top} vorn lagen</i><b>${t.besser} %</b></div><div><i>Käufe über den Kosten</i><b>${t.ueberKosten??t.plus} %</b></div>
+  ${t.nachSteuer!=null?`<div><i>Top ${D.top} nach Kosten und Steuern</i><b class="${kl(t.nachSteuer)}">${pz(t.nachSteuer,2)}</b></div><div><i>Käufe, die dein Ziel geschafft haben</i><b>${t.ueberZiel} %</b></div>`:""}</div>
   <p class="small muted">${gut?"Die Rechnung lag öfter vorn als nicht, aber längst nicht immer.":"Die Rechnung lag kaum öfter vorn als der Durchschnitt. Nimm die Liste als Ideensammlung, nicht als Vorhersage."} Die KI-Auswahl selbst wird ab jetzt unter „Bilanz“ gemessen.</p></div>`}
 function karte(x,H,voll){const k=kurs(x),d=dpVon(x,k.p),seit=x.p0?(k.p/x.p0-1)*100:null;
   return `<div class="card${voll?"":" tap"}" ${voll?"":`data-open="${esc(x.s)}" data-h="${H}"`}>
@@ -73,6 +74,7 @@ function karte(x,H,voll){const k=kurs(x),d=dpVon(x,k.p),seit=x.p0?(k.p/x.p0-1)*1
    <div><i>Seit Liste</i><b>${seit!=null?`<span data-seit="${esc(x.s)}" data-p0="${x.p0}" class="${kl(seit)}">${pz(seit)}</span>`:"–"}</b></div>
    <div><i>4 Wochen</i><b class="${kl(x.wochen4)}">${pz(x.wochen4)}</b></div><div><i>3 Monate</i><b class="${kl(x.monate3)}">${pz(x.monate3)}</b></div>
    <div><i>Trend</i><b>${x.trend==="aufwärts"?"↗ auf":x.trend==="abwärts"?"↘ ab":"–"}</b></div></div>
+  ${H<=7&&x.noetig!=null&&D.kostenRT!=null?`<div class="huerde ${x.typBew>=x.noetig?"ok":"knapp"}"><span>Nach Kosten im Plus ab <b>${pz(D.kostenRT,2)}</b></span><span>Für dein Ziel nötig <b>${pz(x.noetig,1)}</b></span><span>Übliche Bewegung <b>±${nf(x.typBew,1)} %</b></span></div>`:""}
   ${x.einschaetzung?`<p class="fazit">${esc(x.einschaetzung)}</p>`:""}
   ${voll?"":graph(x,H,true)}
   ${x.warum?`<p class="warum">${esc(voll?x.warum:String(x.warum).split(/(?<=[.!?])\s/).slice(0,2).join(" "))}</p>`:`<p class="small muted">KI-Recherche steht noch aus. Platz aus der Kurs-Rechnung.</p>`}
@@ -94,7 +96,7 @@ function meinGeaendert(){MEIN.updatedAt=Date.now();merkeLokal();clearTimeout(mei
 async function ghC(path,opt){const r=await fetch(`https://api.github.com/repos/${repo()}/contents/${path}${opt?"":"?ref=main"}`,Object.assign({headers:{Authorization:`Bearer ${SET.ghToken}`,Accept:"application/vnd.github+json"}},opt||{}));
   if(r.status===404)return null;if(!r.ok)throw new Error("GitHub "+r.status);return r.json()}
 async function pushMein(){if(!syncOn())return;try{const cur=await ghC("data/top.enc");
-    await ghC("data/top.enc",{method:"PUT",body:JSON.stringify({message:"Top-Aktien: Merkliste und Depot",content:btoa(await encJ({merk:MEIN.merk,depot:MEIN.depot,ziel:MEIN.ziel,updatedAt:MEIN.updatedAt},SET.syncPass)),sha:cur?cur.sha:undefined,branch:"main"})});
+    await ghC("data/top.enc",{method:"PUT",body:JSON.stringify({message:"Top-Aktien: Merkliste und Depot",content:btoa(await encJ({merk:MEIN.merk,depot:MEIN.depot,ziel:MEIN.ziel,kosten:MEIN.kosten,updatedAt:MEIN.updatedAt},SET.syncPass)),sha:cur?cur.sha:undefined,branch:"main"})});
     MEIN.sync=Date.now();merkeLokal();wecken(true)}catch(e){toast("Abgleich nicht möglich: "+e.message)}}
 async function pullMein(){if(!syncOn())return;try{const r=await ghC("data/top.enc");if(!r)return;const m=await decJ(atob(r.content.replace(/\n/g,"")),SET.syncPass);
     if((m.updatedAt||0)>(MEIN.updatedAt||0)){MEIN=Object.assign({merk:[],depot:[]},m);merkeLokal();render()}}catch(e){}}
@@ -140,9 +142,9 @@ const proTag=(r,tage)=>(Math.pow(1+r/100,1/tage)-1)*100;         // Ergebnis üb
 const jahr=tagProz=>(Math.pow(1+tagProz/100,250)-1)*100;          // wie viel das im Jahr wäre
 function zielSeite(){const Z=MEIN.ziel||{wert:1,je:"tag"},zt=proTag(Z.wert,JE[Z.je].t),jz=jahr(zt),T=(D&&D.test&&D.test.h)||{},F=(D&&D.bilanz&&D.bilanz.fertig)||{},tips=[];
   // Was haben Liste (Rückblick-Test) und echte Listen pro Tag gebracht?
-  const zeilen=(D?D.horizonte:[]).map(H=>{const t=T[H]||{},f=F[H]||{},testT=t.tage?proTag(t.topAvg,H):null,liveT=f.n?proTag(f.avg,H):null,
-      quote=f.werte&&f.werte.length?Math.round(f.werte.filter(r=>proTag(r,H)>=zt).length/f.werte.length*100):null,
-      tq=t.zielQuote?(()=>{const k=Object.keys(t.zielQuote).map(Number).sort((a,b)=>a-b).filter(x=>x<=zt).pop();return k!=null?{ab:k,q:t.zielQuote[k]}:null})():null;
+  const zeilen=(D?D.horizonte:[]).map(H=>{const t=T[H]||{},f=F[H]||{},testT=t.tage?proTag(t.nachSteuer??t.topAvg,H):null,liveT=f.n?proTag(f.avg>0?f.avg*(1-(D.steuer??26.375)/100):f.avg,H):null,
+      quote=f.werte&&f.werte.length?Math.round(f.werte.filter(r=>proTag(r>0?r*(1-(D.steuer??26.375)/100):r,H)>=zt).length/f.werte.length*100):null,
+      tq=t.ueberZiel!=null?{ab:zt,q:t.ueberZiel}:t.zielQuote?(()=>{const k=Object.keys(t.zielQuote).map(Number).sort((a,b)=>a-b).filter(x=>x<=zt).pop();return k!=null?{ab:k,q:t.zielQuote[k]}:null})():null;
       return {H,testT,liveT,quote,tq,f,t}});
   // Top-Depot: Ergebnis seit Kauf, auf Tage umgerechnet (grob, Währungen nicht umgerechnet)
   const pos=MEIN.depot.map(d=>{const w=wert(d.s),sc=SCHUTZ[d.id]||{},p=w?kurs(w.x).p:(sc.p||d.k),tage=Math.max(1,Math.round((Date.now()-d.t)/864e5*5/7));return {d,ch:(p/d.k-1)*100,tage,wertNow:p*d.q,inListe:inListen(d.s).length>0}});
@@ -162,10 +164,16 @@ function zielSeite(){const Z=MEIN.ziel||{wert:1,je:"tag"},zt=proTag(Z.wert,JE[Z.
   tips.push(["tipp","Plane vor jedem Kauf, wann du verkaufst: Ziel, Stop und Zeitraum. Der Gewinn- und Verlustschutz hier hilft dabei, die Entscheidung triffst aber du."]);
   return `<h2>🎯 Mein Ziel</h2><div class="card ziel"><form onsubmit="return false" class="zielform"><label class="f">Gewinn-Ziel in %<input id="z-wert" type="number" inputmode="decimal" step="any" min="0" value="${Z.wert}"></label>
    <label class="f">Zeitraum<select id="z-je">${Object.entries(JE).map(([k,v])=>`<option value="${k}"${Z.je===k?" selected":""}>${v.n}</option>`).join("")}</select></label><button class="btn" data-ziel>Speichern</button></form>
+   <h3>Kosten und Steuern</h3><form onsubmit="return false" class="zielform">${(()=>{const K=Object.assign({gebuehr:1,einsatz:1000,spread:.1,steuer:26.375},MEIN.kosten||{});
+     return `<label class="f">Gebühr je Order (€)<input id="k-g" type="number" inputmode="decimal" step="any" min="0" value="${K.gebuehr}"></label><label class="f">Einsatz je Kauf (€)<input id="k-e" type="number" inputmode="decimal" step="any" min="1" value="${K.einsatz}"></label>
+     <label class="f">Spread (%, Kauf+Verkauf)<input id="k-s" type="number" inputmode="decimal" step="any" min="0" value="${K.spread}"></label><label class="f">Steuer auf Gewinne (%)<input id="k-t" type="number" inputmode="decimal" step="any" min="0" value="${K.steuer}"></label>`})()}
+     <button class="btn ghost" data-kosten>Kosten speichern</button></form>
+   <p class="small muted">Steuer: 26,375 % = Abgeltungsteuer + Soli, mit Kirchensteuer etwa 27,8 %. Der Freibetrag (1.000 € im Jahr) ist nicht eingerechnet, das ist vorsichtig gerechnet. Die Liste rechnet ab dem nächsten Lauf mit deinen Werten.</p>
+   ${D&&D.noetig?`<p class="small">Damit nach Kosten und Steuern dein Ziel übrig bleibt, muss eine Aktie in <b>3 Tagen ${pz(D.noetig[3],1)}</b> und in <b>7 Tagen ${pz(D.noetig[7],1)}</b> steigen. Ins Plus kommst du ab ${pz(D.kostenRT,2)}.</p>`:""}
    <p class="small">Das sind <b>${pz(zt,2)}</b> pro Handelstag, aufs Jahr gerechnet etwa <b>${jz>1e6?"über 1.000.000 %":pz(jz,0)}</b>.</p>
-   <table><tr><th>Liste</th><th>Test pro Tag</th><th>echt pro Tag</th><th>Ziel erreicht</th></tr>${zeilen.map(z=>`<tr><td>${z.H} Tage</td><td class="${kl(z.testT)}">${z.testT!=null?pz(z.testT,3):"–"}</td><td class="${kl(z.liveT)}">${z.liveT!=null?pz(z.liveT,3):"–"}</td><td>${z.quote!=null?z.quote+" %":z.tq?`Test: ${z.tq.q} %`:"–"}</td></tr>`).join("")}
+   <table><tr><th>Liste</th><th>Test pro Tag*</th><th>echt pro Tag*</th><th>Ziel erreicht</th></tr>${zeilen.map(z=>`<tr><td>${z.H} Tage</td><td class="${kl(z.testT)}">${z.testT!=null?pz(z.testT,3):"–"}</td><td class="${kl(z.liveT)}">${z.liveT!=null?pz(z.liveT,3):"–"}</td><td>${z.quote!=null?z.quote+" %":z.tq?`Test: ${z.tq.q} %`:"–"}</td></tr>`).join("")}
    ${depT!=null?`<tr><td>Mein Top-Depot</td><td>–</td><td class="${kl(depT)}">${pz(depT,3)}</td><td>${depT>=zt?"ja":"nein"}</td></tr>`:""}</table>
-   <p class="small muted">„Ziel erreicht“: Anteil der abgerechneten Listenwerte, die pro Tag mindestens dein Ziel gebracht haben (vor den ersten Abrechnungen: Rückblick-Test, grob gerechnet). Depot grob: Währungen nicht umgerechnet.</p>
+   <p class="small muted">* nach Kosten und Steuern. „Ziel erreicht“: Anteil der abgerechneten Listenwerte, die pro Tag mindestens dein Ziel gebracht haben (vor den ersten Abrechnungen: Rückblick-Test, grob gerechnet). Depot grob: Währungen nicht umgerechnet.</p>
    <h3>Tipps und Empfehlungen</h3><ul class="tips">${tips.map(([k,t])=>`<li class="${k}">${esc(t)}</li>`).join("")}</ul>
    <p class="small muted">Tipps aus deinen Zahlen und dem Rückblick-Test. Keine Anlageberatung.</p></div>`}
 
@@ -317,7 +325,9 @@ async function entscheiden(id,antwort){const r=repo();if(!SET.ghToken||!r)return
 async function wecken(still){const r=repo();if(!SET.ghToken||!r)return toast("Dafür braucht die Haupt-App einen GitHub-Token.");
   try{const x=await fetch(`https://api.github.com/repos/${r}/actions/workflows/wachmann.yml/dispatches`,{method:"POST",headers:{Authorization:`Bearer ${SET.ghToken}`,Accept:"application/vnd.github+json"},body:JSON.stringify({ref:"main"})});
     if(!still)toast(x.status===204?"Wachmann gestartet. Neue Werte in etwa 2–5 Minuten.":"Start nicht möglich (GitHub "+x.status+")");if(x.status===204)[120,240,360].forEach(s=>setTimeout(()=>laden(true),s*1000))}catch(e){toast("Keine Verbindung zu GitHub")}}
-document.addEventListener("click",e=>{const t=e.target.closest("[data-ziel],[data-merk],[data-uebern],[data-uebern-zeig],[data-step],[data-pos-del],[data-ent],[data-tab],[data-f],[data-open],[data-zu],[data-wecken],#refresh,#sheet-bg");if(!t)return;
+document.addEventListener("click",e=>{const t=e.target.closest("[data-kosten],[data-ziel],[data-merk],[data-uebern],[data-uebern-zeig],[data-step],[data-pos-del],[data-ent],[data-tab],[data-f],[data-open],[data-zu],[data-wecken],#refresh,#sheet-bg");if(!t)return;
+  if(t.hasAttribute("data-kosten")){const v=id=>+String($(id).value).replace(",",".");const K={gebuehr:Math.max(0,v("#k-g")||0),einsatz:Math.max(1,v("#k-e")||1000),spread:Math.max(0,v("#k-s")||0),steuer:Math.min(60,Math.max(0,v("#k-t")||0))};
+    MEIN.kosten=K;meinGeaendert();render();toast(syncOn()?"Gespeichert. Die Liste rechnet ab dem nächsten Lauf damit (2–5 Min.).":"Gespeichert (nur auf diesem Handy, für die Liste braucht es den Abgleich).");return}
   if(t.hasAttribute("data-ziel")){const w=+String($("#z-wert").value).replace(",",".");if(!(w>0))return toast("Bitte ein Ziel über 0 eintragen.");MEIN.ziel={wert:w,je:$("#z-je").value};meinGeaendert();render();toast("Ziel gespeichert");return}
   if(t.dataset.merk){e.stopPropagation();merken(t.dataset.merk,t.dataset.n);if(offenS)detail(offenS.s,offenS.H,true);return}
   if(t.hasAttribute("data-uebern-zeig")){const f=t.closest(".mein").querySelector(".uebern");f.hidden=!f.hidden;return}
