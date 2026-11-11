@@ -35,7 +35,10 @@ async function laden(still){const u=kurseUrl();if(!u){ladeFehler="repo";render()
     else{ladeFehler="leer";render()}}catch(e){ladeFehler="netz";if(!D)render();status()}}
 const alleWerte=()=>{if(!D)return [];const m=new Map();for(const H of D.horizonte)for(const x of [...(D.listen[H]||[]),...((D.weitere||{})[H]||[])])if(!m.has(x.s))m.set(x.s,x);return [...m.values()]};
 function kurs(w){const c=[{p:w.p,t:w.mt||0,src:"liste"}],q=KQ[w.s];if(q&&q.c)c.push({p:q.c,t:q.t||0,src:"kurse"});if(LIVE[w.s])c.push(LIVE[w.s]);return c.sort((a,b)=>b.t-a.t)[0]}
-const quelle=(w,k)=>k.src==="Finnhub"&&Date.now()-k.t<12e4?"live":`${istEU(w.s)?"ca. 15 Min. verzögert · ":""}${k.t?vor(k.t):""}`;
+const quelle=(w,k)=>{if(k.src==="Finnhub"&&Date.now()-k.t<12e4)return "live";const alt=Date.now()-k.t;
+  if(k.t&&alt>60*6e4)return `Börse zu · letzter Kurs ${new Date(k.t).toLocaleString("de-DE",{weekday:"short",hour:"2-digit",minute:"2-digit"})} Uhr`;
+  const s=k.src==="liste"&&w.sess==="pre"?"vorbörslich · ":k.src==="liste"&&w.sess==="post"?"nachbörslich · ":"";
+  return `${s}${istEU(w.s)?"ca. 15 Min. verzögert · ":""}${k.t?vor(k.t):""}`};
 const dpVon=(w,p)=>{const prev=w.p/(1+(w.dp||0)/100);return (p/prev-1)*100};
 
 /* ---------- US-Kurse live (Finnhub, Schlüssel aus der Haupt-App) ---------- */
