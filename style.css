@@ -175,3 +175,10 @@ details summary{cursor:pointer}
 .tagbars span{display:block;background:color-mix(in srgb,var(--accent) 45%,transparent);border-radius:3px 3px 0 0}
 .tagbars .best span{background:var(--up)}
 .tagbars i{position:absolute;bottom:-16px;left:50%;transform:translateX(-50%);font-style:normal;font-size:9.5px;color:var(--muted);white-space:nowrap}
+
+.xachse{position:relative;height:16px;font:10.5px var(--f-mono);color:var(--muted);margin-top:2px}
+.xachse span{position:absolute;transform:translateX(-50%);white-space:nowrap}.xachse span:first-child{transform:none}.xachse span:last-child{transform:translateX(-100%)}
+.xachse .zuk{color:var(--accent)}
+.stand{margin:2px 0 6px}
+.bestein{background:var(--up-soft);border-radius:10px;padding:8px 10px;margin:8px 0;font-size:13.5px}.bestein b{color:var(--up)}
+.xachse .heute{color:var(--fg)}

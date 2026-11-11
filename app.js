@@ -234,7 +234,7 @@ function einstiegKandidaten(){if(!D)return [];const m=new Map(),q=P.eq||"3";
   if(q==="meine")for(const mk of MEIN.merk){const w=wert(mk.s);if(w)add(w.x,w.H,"gemerkt")}
   return [...m.values()]}
 // Plan in Worten: wann und zu welchem Kurs einsteigen, Uhrzeit aus dem Rückblick
-function einstiegPlan(x){const e=x.einstieg,k=kurs(x),zt=e.zeit,st=e.stat||{},sdT=x.sdTag||0,lim=k.p*Math.exp(-.5*sdT),bis=t=>{const [h,m]=t.split(":").map(Number),z=h*60+m+30;return String(Math.floor(z/60)%24).padStart(2,"0")+":"+String(z%60).padStart(2,"0")};
+function einstiegPlan(x){const be0=besterEinstieg(x),e=x.einstieg,k=kurs(x),zt=e.zeit,st=e.stat||{},sdT=x.sdTag||0,lim=k.p*Math.exp(-.5*sdT),bis=t=>{const [h,m]=t.split(":").map(Number),z=h*60+m+30;return String(Math.floor(z/60)%24).padStart(2,"0")+":"+String(z%60).padStart(2,"0")};
   const uhr=zt&&zt.best?`zwischen <b>${zt.best.t} und ${bis(zt.best.t)} Uhr</b> (dort lag das Tagestief an ${zt.best.tief} % von ${zt.tage} Tagen)`:"",z=[];
   if(e.z==="guenstig"||e.z==="wende"){z.push(`<b>Jetzt ist ein guter Moment.</b> Der Kurs hat nachgegeben, der Trend zeigt nach oben.`);
     if(uhr)z.push(`Am günstigsten war es im Rückblick meist ${uhr}.`);z.push(`Idee: Kauf-Limit knapp unter dem Kurs, bei etwa <b>${dez(lim)} ${cs(x)}</b> (eine halbe Tagesschwankung tiefer). Wird es heute nicht ausgeführt, morgen neu prüfen.`)}
@@ -244,14 +244,14 @@ function einstiegPlan(x){const e=x.einstieg,k=kurs(x),zt=e.zeit,st=e.stat||{},sd
   else if(e.z==="messer"){z.push(`<b>Jetzt nicht.</b> Der Kurs fällt noch.`);z.push(`Erst wenn er an einem Tag über <b>${dez(e.ziel)} ${cs(x)}</b> schließt (${pz(e.zielAbst)}), ist die Wende da. Dann am nächsten Tag${uhr?" "+uhr:""} kaufen.`)}
   else{z.push(`<b>Weder günstig noch teuer.</b> Kein besonderer Grund, jetzt zu kaufen oder zu warten.`);if(uhr)z.push(`Wenn du kaufst, dann am ehesten ${uhr}.`)}
   if(x.noetig!=null)z.push(`Danach: Für dein Ziel muss der Kurs in ${x.H||3} Tagen um ${pz(x.noetig,1)} steigen. Setz Gewinn- und Verlustschutz direkt beim Übernehmen.`);
-  return z.map(t=>`<p class="small">${t}</p>`).join("")}
+  return (be0?`<div class="bestein">🗓️ Bester Einstieg (Schätzung): <b>${esc(be0.txt)}</b>${be0.bed?`<br><span class="small">${esc(be0.bed)}</span>`:""}</div>`:"")+z.map(t=>`<p class="small">${t}</p>`).join("")+`<p class="small muted">Tage ohne Feiertage gerechnet. Schätzung aus dem Rückblick, keine Vorhersage.</p>`}
 function heuteGraph(x){const e=x.einstieg,h=e.heute||[];if(h.length<3)return `<p class="small muted">Heute noch kein Handel für diesen Wert.</p>`;
   const v=h.map(a=>a[1]),all=[...v,...(e.ziel?[e.ziel]:[])],lo=Math.min(...all),hi=Math.max(...all),W=600,Hh=110,Y=y=>Hh-14-(y-lo)/(hi-lo||1)*(Hh-24),X=i=>i/(h.length-1)*W;
   const ticks=h.map((a,i)=>[a[0],i]).filter(([t],i)=>t.endsWith(":00")&&i%2===0).slice(0,8);
   return `<svg class="spark" viewBox="0 0 ${W} ${Hh}" preserveAspectRatio="none">${e.ziel?`<line x1="0" x2="${W}" y1="${Y(e.ziel)}" y2="${Y(e.ziel)}" stroke="var(--accent)" stroke-width="2" stroke-dasharray="6 4" vector-effect="non-scaling-stroke"/>`:""}
    <polyline points="${v.map((y,i)=>`${X(i).toFixed(1)},${Y(y).toFixed(1)}`).join(" ")}" fill="none" stroke="var(--fg)" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>
    <div class="achse">${ticks.map(([t])=>`<span>${t}</span>`).join("")}</div>
-   <p class="small muted">Heute, alle 15 Minuten, deutsche Zeit${e.ziel?' · <span style="color:var(--accent)">- - Einstiegsmarke</span>':""}. Tief heute: ${dez(Math.min(...v))} um ${h[v.indexOf(Math.min(...v))][0]} Uhr.</p>`}
+   <p class="small muted">Heute, alle 15 Minuten, deutsche Zeit${e.ziel?' · <span style="color:var(--accent)">- - Einstiegsmarke</span>':""}. Tief heute: ${dez(Math.min(...v))} um ${h[v.indexOf(Math.min(...v))][0]} Uhr. Letzter Wert ${h[h.length-1][0]} Uhr · ${standTxt(x)}.</p>`}
 function tagGraph(x){const z=x.einstieg.zeit;if(!z||!z.b||!z.b.length)return `<p class="small muted">Für die Uhrzeit fehlen noch Daten (kommt mit dem nächsten Lauf).</p>`;
   const mx=Math.max(...z.b.map(b=>b.tief),1);
   return `<div class="tagbars">${z.b.map(b=>`<div class="${z.best&&b.t===z.best.t?"best":""}" title="${b.t}: Tagestief an ${b.tief} % der Tage"><span style="height:${Math.max(3,b.tief/mx*100)}%"></span><i>${b.t.endsWith(":00")||b.t.endsWith(":30")&&z.b.length<12?b.t.replace(":00",""):""}</i></div>`).join("")}</div>
@@ -261,7 +261,9 @@ function einstiegDetail(x){if(!x.einstieg)return "";const e=x.einstieg;
    <h3 class="h3">Heute</h3>${heuteGraph(x)}<h3 class="h3">Zu welcher Uhrzeit war es meist am günstigsten?</h3>${tagGraph(x)}</div>`}
 function einstiegKarte(x){const e=x.einstieg,k=kurs(x),st=e.stat||{},s3=st[3]||{},s7=st[7]||{},gut=e.z==="guenstig"||e.z==="wende",w=e.ziel!=null;
   const c=(x.spark||[]).slice(-30),gr=c.length>1?(()=>{const all=[...c,...(w?[e.ziel]:[]),...(e.s20?[e.s20]:[])],lo=Math.min(...all),hi=Math.max(...all),W=600,Hh=70,Y=v=>Hh-4-(v-lo)/(hi-lo||1)*(Hh-8);
-    return `<svg class="spark mini" viewBox="0 0 ${W} ${Hh}" preserveAspectRatio="none">${e.s20?`<line x1="0" x2="${W}" y1="${Y(e.s20)}" y2="${Y(e.s20)}" stroke="var(--muted)" stroke-dasharray="3 4" vector-effect="non-scaling-stroke"/>`:""}${w?`<line x1="0" x2="${W}" y1="${Y(e.ziel)}" y2="${Y(e.ziel)}" stroke="var(--${ZFARBE[e.z]==="down"?"up":"accent"})" stroke-width="2" stroke-dasharray="6 4" vector-effect="non-scaling-stroke"/>`:""}<polyline points="${c.map((v,i)=>`${(i/(c.length-1)*W).toFixed(1)},${Y(v).toFixed(1)}`).join(" ")}" fill="none" stroke="var(--fg)" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>`})():"";
+    return `<svg class="spark mini" viewBox="0 0 ${W} ${Hh}" preserveAspectRatio="none">${e.s20?`<line x1="0" x2="${W}" y1="${Y(e.s20)}" y2="${Y(e.s20)}" stroke="var(--muted)" stroke-dasharray="3 4" vector-effect="non-scaling-stroke"/>`:""}${w?`<line x1="0" x2="${W}" y1="${Y(e.ziel)}" y2="${Y(e.ziel)}" stroke="var(--${ZFARBE[e.z]==="down"?"up":"accent"})" stroke-width="2" stroke-dasharray="6 4" vector-effect="non-scaling-stroke"/>`:""}<polyline points="${c.map((v,i)=>`${(i/(c.length-1)*W).toFixed(1)},${Y(v).toFixed(1)}`).join(" ")}" fill="none" stroke="var(--fg)" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>
+    ${(()=>{const dd=(x.sparkD||[]).slice(-c.length);return dd.length>1?`<div class="xachse">${[0,Math.round((c.length-1)/2),c.length-1].map(i=>`<span style="left:${(i/(c.length-1)*100).toFixed(1)}%">${dmy(dd[i])}</span>`).join("")}</div>`:""})()}
+    <p class="small muted stand">${standTxt(x)}</p>`})():"";
   const warten=st.wartenAvg!=null&&st.sofortAvg!=null?(st.wartenAvg>st.sofortAvg+.2?`Im Rückblick hat sich Warten gelohnt: Ø ${pz(st.wartenAvg)} statt ${pz(st.sofortAvg)} bei sofortigem Kauf.`:`Ehrlich: Im Rückblick brachte Warten nicht mehr als sofort kaufen (Ø ${pz(st.wartenAvg)} statt ${pz(st.sofortAvg)}). Der Kurs läuft oft einfach weiter.`):"";
   return `<div class="card ein e-${ZFARBE[e.z]}" data-open="${esc(x.s)}" data-h="${x.H}"><div class="sig-top"><div class="nm"><b>${esc(x.n)}</b><span>${x.typ==="e"?"ETF · ":""}${esc(x.s)} · ${esc(x.quelle)}</span></div>
    <div class="px"><span data-px="${esc(x.s)}">${dez(k.p)} ${cs(x)}</span><small class="muted">RSI ${e.rsi??"–"}</small></div></div>
@@ -269,6 +271,7 @@ function einstiegKarte(x){const e=x.einstieg,k=kurs(x),st=e.stat||{},s3=st[3]||{
    <div class="lv"><div><i>zum Ø 20 Tage</i><b>${pz(e.ab20)}</b></div><div><i>vom Hoch 10 T.</i><b>${pz(e.vomHoch)}</b></div>
     <div><i>${e.z==="messer"?"Wende ab Kurs":"Einstiegszone"}</i><b>${w?dez(e.ziel):gut?"jetzt":"–"}</b>${w?`<small>${pz(e.zielAbst)}</small>`:""}</div><div><i>Rückblick 3 T.</i><b class="${kl(s3.avg)}">${s3.n?pz(s3.avg):"–"}</b><small>${s3.n?s3.plus+" % im Plus":""}</small></div></div>
    ${w&&st.faelle?`<p class="small">${e.z==="messer"?`Früher stieg der Kurs in <b>${st.erreicht} %</b> der Fälle innerhalb von 10 Handelstagen wieder über diese Marke`:`Früher kam der Kurs in <b>${st.erreicht} %</b> der Fälle innerhalb von 10 Handelstagen in diese Zone`}${st.medTage?`, meist nach etwa <b>${st.medTage} Tagen</b>`:""}. ${warten}</p>`:""}
+   ${(()=>{const be=besterEinstieg(x);return be?`<div class="bestein">🗓️ Bester Einstieg (Schätzung): <b>${esc(be.txt)}</b>${be.bed?`<br><span class="small">${esc(be.bed)}</span>`:""}</div>`:""})()}
    ${e.zeit&&e.zeit.best?`<p class="small">🕒 Günstigste Uhrzeit im Rückblick: <b>${e.zeit.best.t} Uhr</b> (Tagestief dort an ${e.zeit.best.tief} % der Tage)</p>`:""}
    ${gut&&s3.n?`<p class="small">Kauf in diesem Zustand brachte im Rückblick in 3 Tagen Ø ${pz(s3.avg)}, in 7 Tagen Ø ${pz(s7.avg)} (nach Kosten).</p>`:""}</div>`}
 function seiteEinstieg(){const l=einstiegKandidaten(),f=P.ef||"alle",rang={guenstig:0,wende:1,neutral:2,ueberdehnt:3,messer:4};
@@ -364,6 +367,22 @@ function musterBlock(x,H){const l=x.muster||[];if(!l.length)return `<h2>Erkannte
   return `<h2>Erkannte Muster <span class="vorsicht">⚠️ mit Vorsicht</span></h2><div class="card">${l.map(m=>`<div class="muster"><b>${esc(m.n)}</b> <span class="muted small">${m.vor?`vor ${m.vor} Handelstag${m.vor>1?"en":""}`:"heute"}</span>
    <p class="small">${m.stat?`Früher danach in ${H} Tagen: Ø <b class="${kl(m.stat.avg)}">${pz(m.stat.avg)}</b>, ${m.stat.plus} % im Plus, gegenüber dem Markt ${pz(m.stat.vorsprung)} · ${m.stat.n} Fälle`:"Noch keine Rückblick-Daten."}${m.urteil?` · Urteil: ${esc(m.urteil)}`:""}</p></div>`).join("")}
    <p class="small muted">Muster wiederholen sich oft nicht. Die Zahlen sind Durchschnitte über viele Fälle in den letzten 2 Jahren, der Einzelfall kann ganz anders laufen. Muster fließen nicht in die Rangliste ein.</p></div>`}
+
+/* ---------- Zeiten: Achsen, Stand, bester künftiger Einstieg ---------- */
+const WT=["So.","Mo.","Di.","Mi.","Do.","Fr.","Sa."];
+const dmy=md=>{const [m,d]=String(md).split("-");return `${+d}.${+m}.`};
+function handelstag(n){const d=new Date();let k=0;while(k<n){d.setDate(d.getDate()+1);if(d.getDay()%6)k++}return d} // ohne Feiertage
+const tagTxt=d=>`${WT[d.getDay()]} ${d.getDate()}.${d.getMonth()+1}.`;
+const plus30=t=>{const [h,m]=t.split(":").map(Number),z=h*60+m+30;return String(Math.floor(z/60)%24).padStart(2,"0")+":"+String(z%60).padStart(2,"0")};
+function standTxt(x){const k=kurs(x);return `Stand ${uhr(D.t)} Uhr · Kurs von ${k.t?new Date(k.t).toLocaleString("de-DE",{weekday:"short",hour:"2-digit",minute:"2-digit"}):"–"}`}
+// Bester künftiger Einstieg: Tag (aus „meist nach N Tagen“) + Uhrzeit (aus dem Tagestief-Muster). Immer eine Schätzung.
+function besterEinstieg(x){const e=x.einstieg;if(!e)return null;const z=e.zeit&&e.zeit.best,st=e.stat||{},jetzt=new Date(),hm=jetzt.getHours()*60+jetzt.getMinutes(),wt=jetzt.getDay()%6!==0;
+  const fenster=z?`${z.t}–${plus30(z.t)} Uhr`:"";let tag,bed="",n=0;
+  if(e.z==="guenstig"||e.z==="wende"||e.z==="neutral"){const [h,m]=z?z.t.split(":").map(Number):[0,0];if(wt&&z&&hm<h*60+m+30)tag="heute";else{tag=tagTxt(handelstag(1));n=1}
+    if(e.z==="neutral")bed="kein besonderer Vorteil, nur die günstigste Uhrzeit"}
+  else if(e.z==="ueberdehnt"){n=Math.max(1,st.medTage||5);tag=`um ${tagTxt(handelstag(n))}`;bed=`wenn der Kurs bis dahin in die Zone um ${dez(e.ziel)} ${cs(x)} gefallen ist${st.erreicht!=null?` (früher in ${st.erreicht} % der Fälle)`:""}`}
+  else if(e.z==="messer"){n=Math.max(1,(st.medTage||3));tag=`frühestens um ${tagTxt(handelstag(n+1))}`;bed=`wenn der Kurs vorher an einem Tag über ${dez(e.ziel)} ${cs(x)} schließt`}
+  return {tag,fenster,bed,n,txt:`${tag}${fenster?` · ${fenster}`:""}`}}
 function graph(x,H,klein){const c=(x.spark||[]).slice(klein?-30:-60);if(c.length<2)return "";const p=kurs(x).p,sd=x.sdTag||0,t=(D.test&&D.test.h||{})[H]||{};
   const me=musterErw(x,H);
   const zuk=[...Array(H+1).keys()].map(k=>({k,mu:me!=null?p*(1+me/100*k/H):null,o1:p*Math.exp(sd*Math.sqrt(k)),u1:p*Math.exp(-sd*Math.sqrt(k)),o2:p*Math.exp(2*sd*Math.sqrt(k)),u2:p*Math.exp(-2*sd*Math.sqrt(k)),m:t.tage?p*(1+t.topAvg/100*k/H):null}));
@@ -377,8 +396,14 @@ function graph(x,H,klein){const c=(x.spark||[]).slice(klein?-30:-60);if(c.length
    ${x.p0?`<line x1="0" x2="${xv}" y1="${Y(x.p0)}" y2="${Y(x.p0)}" stroke="var(--muted)" stroke-dasharray="3 4" stroke-width="1" vector-effect="non-scaling-stroke"/>`:""}
    ${t.tage?`<polyline points="${zuk.map(z=>`${XZ(z.k).toFixed(1)},${Y(z.m).toFixed(1)}`).join(" ")}" fill="none" stroke="var(--accent)" stroke-dasharray="6 5" stroke-width="2" vector-effect="non-scaling-stroke"/>`:""}
    ${me!=null?`<polyline points="${zuk.map(z=>`${XZ(z.k).toFixed(1)},${Y(z.mu).toFixed(1)}`).join(" ")}" fill="none" stroke="var(--warn)" stroke-dasharray="2 4" stroke-width="2" vector-effect="non-scaling-stroke"/>`:""}
-   <polyline points="${[...c,p].map((v,i)=>`${(i<n?X(i):xv).toFixed(1)},${Y(v).toFixed(1)}`).join(" ")}" fill="none" stroke="${col}" stroke-width="2.2" vector-effect="non-scaling-stroke"/></svg>
+   <polyline points="${[...c,p].map((v,i)=>`${(i<n?X(i):xv).toFixed(1)},${Y(v).toFixed(1)}`).join(" ")}" fill="none" stroke="${col}" stroke-width="2.2" vector-effect="non-scaling-stroke"/>
+   ${(()=>{const be=besterEinstieg(x);if(!be||!x.einstieg||be.n>H)return "";const k=Math.max(0,be.n),py=x.einstieg.ziel&&x.einstieg.z==="ueberdehnt"?x.einstieg.ziel:p;if(py<lo||py>hi)return "";
+     return `<line x1="${XZ(k)}" x2="${XZ(k)}" y1="0" y2="${Hh}" stroke="var(--up)" stroke-width="1.5" stroke-dasharray="3 3" vector-effect="non-scaling-stroke"/><circle cx="${XZ(k)}" cy="${Y(py)}" r="${klein?5:7}" fill="var(--up)" stroke="var(--bg)" stroke-width="2"/>`})()}</svg>
+  ${(()=>{const dd=(x.sparkD||[]).slice(-n);if(dd.length<2)return "";const idx=[0,Math.round((n-1)/3),Math.round(2*(n-1)/3)];
+    return `<div class="xachse">${idx.map(i=>`<span style="left:${(X(i)/W*100).toFixed(1)}%">${dmy(dd[i])}</span>`).join("")}<span class="heute" style="left:${(xv/W*100).toFixed(1)}%">heute</span><span class="zuk" style="left:100%">${(d=>`${d.getDate()}.${d.getMonth()+1}.`)(handelstag(H))}</span></div>`})()}
+  ${klein?`<p class="small muted stand">${standTxt(x)}</p>`:""}
   ${klein?"":`<div class="legende"><span><i class="l-kurs" style="background:${col}"></i>Verlauf ${n} Handelstage</span><span><i class="l-band"></i>übliche Schwankung in ${H} Tagen (2 von 3 Fällen, hell: 19 von 20)</span>${t.tage?`<span><i class="l-test"></i>Ø der Top ${D.top} im Rückblick-Test (${pz(t.topAvg)})</span>`:""}${x.p0?`<span><i class="l-p0"></i>Kurs bei Veröffentlichung</span>`:""}${me!=null?`<span><i class="l-mu"></i>Muster-Erwartung (${pz(me)}, ⚠️ unsicher)</span>`:""}</div>
+  <p class="small muted stand">${standTxt(x)}${besterEinstieg(x)?` · <span style="color:var(--up)">● geschätzter bester Einstieg: ${esc(besterEinstieg(x).txt)}</span>`:""}</p>
   <p class="small muted">Der Bereich rechts ist keine Vorhersage, sondern zeigt, wie weit der Kurs normalerweise schwankt. Die gestrichelte Linie ist das, was die Top ${D.top} dieses Zeitraums im letzten Jahr im Schnitt gebracht haben.</p>`}`}
 function detail(s,H,still){const x=(D.listen[H]||[]).find(y=>y.s===s)||(D.meine||{})[s];if(!x)return;offenS={s,H};const auch=D.horizonte.filter(h=>h!==H&&(D.listen[h]||[]).some(y=>y.s===s));
   const li=(t,a)=>a&&a.length?`<h2>${t}</h2><ul class="why">${a.map(z=>`<li>${esc(z)}</li>`).join("")}</ul>`:"";
