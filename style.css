@@ -166,3 +166,12 @@ details summary{cursor:pointer}
 
 .sw{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);font-size:14px;cursor:pointer}
 .sw input{width:20px;height:20px;accent-color:var(--accent);flex:none}
+
+.tbruch{background:var(--warn-soft);color:var(--warn);border-radius:10px;padding:7px 10px;font-size:13px;margin:8px 0 0}
+.h3{font:700 14px var(--f-body);margin:14px 0 6px}
+.achse{display:flex;justify-content:space-between;font-size:10.5px;color:var(--muted);font-family:var(--f-mono)}
+.tagbars{display:flex;align-items:flex-end;gap:2px;height:90px;padding-bottom:16px;position:relative}
+.tagbars div{flex:1;height:100%;display:flex;flex-direction:column;justify-content:flex-end;position:relative}
+.tagbars span{display:block;background:color-mix(in srgb,var(--accent) 45%,transparent);border-radius:3px 3px 0 0}
+.tagbars .best span{background:var(--up)}
+.tagbars i{position:absolute;bottom:-16px;left:50%;transform:translateX(-50%);font-style:normal;font-size:9.5px;color:var(--muted);white-space:nowrap}
