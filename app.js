@@ -227,10 +227,11 @@ function verkauftListe(){const l=MEIN.verkauft||[];if(!l.length)return "";const 
 
 /* ---------- Einstieg: lohnt es sich genau jetzt, oder lieber warten? ---------- */
 const ZFARBE={guenstig:"up",wende:"up",neutral:"muted",ueberdehnt:"warn",messer:"down"},ZICON={guenstig:"🟢",wende:"🟢",neutral:"⚪",ueberdehnt:"🟡",messer:"🔴"};
-function einstiegKandidaten(){if(!D)return [];const m=new Map(),q=P.eq||"3";
+function einstiegKandidaten(){if(!D)return [];const m=new Map(),q=P.eq||(D.einstiegTop?"top":"3");
   const add=(x,H,quelle)=>{if(x&&x.einstieg&&!m.has(x.s))m.set(x.s,Object.assign({},x,{H,quelle}))};
-  for(const H of (q==="alle"?D.horizonte:[+q]))(D.listen[H]||[]).forEach(x=>add(x,H,`Platz ${x.platz} (${H} T.)`));
-  for(const H of (q==="alle"?D.horizonte:[+q]))((D.weitere||{})[H]||[]).forEach(x=>add(x,H,`Rechnung Platz ${x.rang} (${H} T.)`));
+  for(const H of (q==="alle"?D.horizonte:q==="top"||q==="meine"?[]:[+q]))(D.listen[H]||[]).forEach(x=>add(x,H,`Platz ${x.platz} (${H} T.)`));
+  for(const H of (q==="alle"?D.horizonte:q==="top"||q==="meine"?[]:[+q]))((D.weitere||{})[H]||[]).forEach(x=>add(x,H,`Rechnung Platz ${x.rang} (${H} T.)`));
+  if(q==="top")(D.einstiegTop||[]).forEach(x=>add(x,3,`Einstieg-Rang ${x.rang} von ${D.werte} Werten`));
   if(q==="meine")for(const mk of MEIN.merk){const w=wert(mk.s);if(w)add(w.x,w.H,"gemerkt")}
   return [...m.values()]}
 // Plan in Worten: wann und zu welchem Kurs einsteigen, Uhrzeit aus dem Rückblick
@@ -278,7 +279,7 @@ function seiteEinstieg(){const l=einstiegKandidaten(),f=P.ef||"alle",rang={guens
   const sicht=l.filter(x=>f==="alle"||(f==="jetzt"?["guenstig","wende"].includes(x.einstieg.z):f==="warten"?["ueberdehnt","messer"].includes(x.einstieg.z):x.einstieg.z==="neutral")).sort((a,b)=>rang[a.einstieg.z]-rang[b.einstieg.z]);
   const anz=k=>l.filter(x=>k.includes(x.einstieg.z)).length;
   return `<h2>⏱️ Einstieg: lohnt es sich jetzt?</h2><p class="small muted">Für die besten Werte: Kaufst du gerade oben auf dem Berg, oder nach einem Rücksetzer? Und wenn nicht jetzt, ab welchem Kurs. Zeitangaben sind Erfahrungswerte aus dem letzten Jahr, keine Vorhersage.</p>
-  <div class="filters">${[["3","3 Tage"],["7","7 Tage"],["30","30 Tage"],["alle","Alle Listen"],["meine","Gemerkt"]].map(([k,n])=>`<button data-eq="${k}" class="${(P.eq||"3")===k?"on":""}">${n}</button>`).join("")}</div>
+  <div class="filters">${[...(D&&D.einstiegTop?[["top",`🏆 Beste aus allen ${D.werte}`]]:[]),["3","3 Tage"],["7","7 Tage"],["30","30 Tage"],["alle","Alle Listen"],["meine","Gemerkt"]].map(([k,n])=>`<button data-eq="${k}" class="${(P.eq||(D&&D.einstiegTop?"top":"3"))===k?"on":""}">${n}</button>`).join("")}</div>
   <div class="filters">${[["alle",`Alle (${l.length})`],["jetzt",`🟢 Jetzt günstig (${anz(["guenstig","wende"])})`],["warten",`🟡 Lieber warten (${anz(["ueberdehnt","messer"])})`],["neutral",`⚪ Neutral (${anz(["neutral"])})`]].map(([k,n])=>`<button data-ef="${k}" class="${f===k?"on":""}">${n}</button>`).join("")}</div>
   ${sicht.map(einstiegKarte).join("")||`<div class="card small muted">${l.length?"In diesem Filter gerade nichts.":"Noch keine Daten. Kommt mit dem nächsten Lauf des Wachmanns."}</div>`}
   <p class="small muted">Gemerkte Werte: Der Bot meldet sich in Telegram, sobald einer davon auf „Jetzt günstig“ springt. Keine Anlageberatung.</p>`}
@@ -405,7 +406,7 @@ function graph(x,H,klein){const c=(x.spark||[]).slice(klein?-30:-60);if(c.length
   ${klein?"":`<div class="legende"><span><i class="l-kurs" style="background:${col}"></i>Verlauf ${n} Handelstage</span><span><i class="l-band"></i>übliche Schwankung in ${H} Tagen (2 von 3 Fällen, hell: 19 von 20)</span>${t.tage?`<span><i class="l-test"></i>Ø der Top ${D.top} im Rückblick-Test (${pz(t.topAvg)})</span>`:""}${x.p0?`<span><i class="l-p0"></i>Kurs bei Veröffentlichung</span>`:""}${me!=null?`<span><i class="l-mu"></i>Muster-Erwartung (${pz(me)}, ⚠️ unsicher)</span>`:""}</div>
   <p class="small muted stand">${standTxt(x)}${besterEinstieg(x)?` · <span style="color:var(--up)">● geschätzter bester Einstieg: ${esc(besterEinstieg(x).txt)}</span>`:""}</p>
   <p class="small muted">Der Bereich rechts ist keine Vorhersage, sondern zeigt, wie weit der Kurs normalerweise schwankt. Die gestrichelte Linie ist das, was die Top ${D.top} dieses Zeitraums im letzten Jahr im Schnitt gebracht haben.</p>`}`}
-function detail(s,H,still){const x=(D.listen[H]||[]).find(y=>y.s===s)||(D.meine||{})[s];if(!x)return;offenS={s,H};const auch=D.horizonte.filter(h=>h!==H&&(D.listen[h]||[]).some(y=>y.s===s));
+function detail(s,H,still){const x=(D.listen[H]||[]).find(y=>y.s===s)||(D.meine||{})[s]||(D.einstiegTop||[]).find(y=>y.s===s)||((D.weitere||{})[H]||[]).find(y=>y.s===s);if(!x)return;offenS={s,H};const auch=D.horizonte.filter(h=>h!==H&&(D.listen[h]||[]).some(y=>y.s===s));
   const li=(t,a)=>a&&a.length?`<h2>${t}</h2><ul class="why">${a.map(z=>`<li>${esc(z)}</li>`).join("")}</ul>`:"";
   $("#sheet").innerHTML=`<div class="grab"></div><div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><div class="brand" style="flex:1;font-size:19px">${esc(x.n)}</div><button class="icon-btn" data-zu aria-label="Schließen"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
   ${graph(x,H)}${karte(x,H,true)}
