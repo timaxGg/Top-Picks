@@ -125,6 +125,7 @@ function seiteMeine(){const dep=MEIN.depot,mk=MEIN.merk;
      ${sc.warn?`<p class="small down"><b>Schutzlinie unterschritten.</b> Der Bot hat dich gewarnt. Mit OK in Telegram setzt du den Schutz neu.</p>`:""}
      <div style="display:flex;gap:8px;margin-top:8px">${x?`<button class="btn ghost" data-open="${esc(d.s)}" data-h="${w.H}">Details</button>`:""}<button class="btn ghost" data-pos-del="${d.id}">Entfernen</button></div></div>`};
   return `${syncOn()?"":`<div class="card small">Ohne <b>GitHub-Token und Sync-Passwort</b> in der Haupt-App bleibt alles nur auf diesem Handy, und der Bot kann dich nicht warnen. Trag beides in der Haupt-App unter Einstellungen ein.</div>`}
+  ${risikoListe()}
   ${zielSeite()}
   <h2>Mein Top-Depot</h2>${dep.length?dep.map(pos).join(""):`<div class="card small muted">Noch nichts übernommen. Öffne eine Aktie und tippe auf „Übernehmen“, wenn du sie gekauft hast.</div>`}
   <p class="small muted">Gewinnschutz: Die Schutzlinie läuft mit deinem höchsten Plus seit Kauf mit (minus Abstand, nie unter 0). Fällt das Plus darunter, warnt der Bot. Verlustschutz: Warnung, sobald das Minus die Grenze erreicht, danach bei jedem weiteren 2 Prozentpunkten. Getrennt vom Depot im Aktien Helfer.</p>
@@ -167,6 +168,34 @@ function zielSeite(){const Z=MEIN.ziel||{wert:1,je:"tag"},zt=proTag(Z.wert,JE[Z.
    <p class="small muted">„Ziel erreicht“: Anteil der abgerechneten Listenwerte, die pro Tag mindestens dein Ziel gebracht haben (vor den ersten Abrechnungen: Rückblick-Test, grob gerechnet). Depot grob: Währungen nicht umgerechnet.</p>
    <h3>Tipps und Empfehlungen</h3><ul class="tips">${tips.map(([k,t])=>`<li class="${k}">${esc(t)}</li>`).join("")}</ul>
    <p class="small muted">Tipps aus deinen Zahlen und dem Rückblick-Test. Keine Anlageberatung.</p></div>`}
+
+
+/* ---------- Risiko-Rangliste: meine Aktien, die meiste Aufmerksamkeit brauchen, zuerst ---------- */
+// Feste, nachvollziehbare Punkte aus Schutz-Status, Kursdaten und Mustern. Jeder Punkt wird als Grund angezeigt.
+function risiko(d){const w=wert(d.s),x=w?w.x:null,sc=SCHUTZ[d.id]||{},p=x?kurs(x).p:(sc.p||d.k),ch=(p/d.k-1)*100,a=-Math.abs(d.a??10),g=[];let pt=0,muss=false; // muss: eine Schutzgrenze ist erreicht, dann immer „Hoch“
+  const add=(n,t)=>{pt+=n;g.push(t)};
+  if(d.a!==0&&ch<=a){muss=true;add(50,`Verlustschutz erreicht: ${pz(ch)} seit Kauf (Grenze ${pz(a)})`)}
+  else if(d.a!==0&&ch-a<3)add(20,`Nah am Verlustschutz: noch ${nf(ch-a,1)} Pkt. bis ${pz(a)}`);
+  if(sc.warn&&!(d.a!==0&&ch<=a)){muss=true;add(50,`Gewinnschutz unterschritten: Plus ${pz(ch)}, Schutzlinie ${pz(sc.lv)}`)}
+  else if(d.nl!==0&&sc.lv>0&&ch-sc.lv<.5)add(15,`Knapp über der Schutzlinie (${pz(sc.lv)})`);
+  if(x){const dp=dpVon(x,p);if(dp<=-3)add(7,`Heute stark gefallen: ${pz(dp)}`);
+    if(x.trend==="abwärts")add(10,"Trend abwärts (20- unter 50-Tage-Schnitt)");
+    if(x.ueber50!=null&&x.ueber50<0)add(8,`Kurs ${pz(x.ueber50)} unter dem 50-Tage-Schnitt`);
+    if(x.rsi!=null&&x.rsi>75)add(8,`Überhitzt (RSI ${x.rsi}): Rücksetzer möglich${ch>0?", Gewinne sichern prüfen":""}`);
+    if(x.rsi!=null&&x.rsi<30)add(5,`Stark verkauft (RSI ${x.rsi})`);
+    if(x.schwankungJahr>50)add(5,`Schwankt stark (${x.schwankungJahr} % pro Jahr)`);
+    const neg=(x.muster||[]).filter(m=>m.urteil==="eher negativ");if(neg.length)add(8,`Muster mit eher negativem Rückblick: ${neg.map(m=>m.n).join(", ")} ⚠️ unsicher`)}
+  const li=inListen(d.s);if(!li.length&&ch<0)add(10,"Im Minus und in keiner aktuellen Liste mehr");
+  if(li.length){pt-=5;g.push(`Spricht dagegen: steht in der Liste (${li.join(", ")})`)}
+  if(!x)g.push("Für diesen Wert fehlen gerade Kursdaten");
+  pt=Math.max(0,Math.min(100,pt));const st=muss||pt>=50?{k:"hoch",t:"Hoch – jetzt prüfen, Verkauf erwägen"}:pt>=25?{k:"mittel",t:"Mittel – genau beobachten"}:{k:"niedrig",t:"Niedrig – im Plan"};
+  return {d,w,ch,p,pt,st,g}}
+function risikoListe(){if(!MEIN.depot.length)return "";const l=MEIN.depot.map(risiko).sort((a,b)=>b.pt-a.pt||a.ch-b.ch);
+  return `<h2>⚠️ Meine Aktien nach Risiko</h2><p class="small muted">Oben die Aktien, bei denen das Risiko und der Grund zum Verkaufen gerade am größten sind. Regel-Einschätzung aus Schutz, Trend und Kursdaten, keine Anlageberatung: Ob du verkaufst, entscheidest du.</p>
+  ${l.map((r,i)=>`<div class="card risk ${r.st.k}"${r.w?` data-open="${esc(r.d.s)}" data-h="${r.w.H}"`:""}><div class="sig-top"><span class="rang r-${r.st.k}">${i+1}</span><div class="nm"><b>${esc(r.d.n)}</b><span>${esc(r.d.s)} · ${pz(r.ch)} seit Kauf</span></div>
+    <div class="px"><span class="rpunkte">${r.pt}</span><small>Risiko-Punkte</small></div></div>
+    <div class="rbar"><span style="width:${Math.max(4,r.pt)}%"></span></div><b class="rst">${r.st.t}</b>
+    <ul class="why">${r.g.slice(0,5).map(t=>`<li>${esc(t)}</li>`).join("")}</ul></div>`).join("")}`}
 
 /* ---------- Seiten ---------- */
 function leer(){if(ladeFehler==="repo")return `<div class="card empty"><b>Repository unbekannt</b><p class="muted">Öffne die App über deine GitHub-Pages-Adresse oder trag in der Haupt-App dein GitHub-Repository ein.</p><a class="btn ghost" href="${HAUPT_APP}">Zur Haupt-App</a></div>`;
@@ -227,7 +256,7 @@ function seiteBilanz(){const b=D.bilanz||{},f=b.fertig||{};
    <p class="muted">Keine erfundenen Zahlen: Kurswerte kommen aus Kursdaten, alles andere aus verlinkten Quellen. „Übliche Schwankung“ ist keine Prognose, sondern die normale Bandbreite. Kurzfristig ist an der Börse viel Zufall dabei. Keine Anlageberatung.</p></div>
   <div class="card small"><b>Kurse</b><br>US-Aktien: ${SET.fhKey?"live über deinen Finnhub-Schlüssel.":"ohne Finnhub-Schlüssel alle 5–15 Minuten."} EU-Aktien: ca. 15 Minuten verzögert plus Takt des Wachmanns.<br><br><b>Telegram</b><br>/beste zeigt die Listen, /beste 7 nur einen Zeitraum, /warum NVDA die Begründung mit Quellen.
    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">${SET.ghToken&&repo()?`<button class="btn" data-wecken>Wachmann jetzt starten</button>`:""}<a class="btn ghost" href="${HAUPT_APP}">Zur Haupt-App</a></div></div>`}
-function render(){chips();status();$$(".tabs button").forEach(b=>b.classList.toggle("on",b.dataset.tab===P.tab));const v=$("#view");
+function render(){chips();status();$$(".tabs button").forEach(b=>b.classList.toggle("on",b.dataset.tab===P.tab));{const tb=$('.tabs [data-tab="meine"]');if(tb)tb.classList.toggle("alarm",!!D&&MEIN.depot.some(d=>risiko(d).pt>=50))}const v=$("#view");
   if(!D){v.innerHTML=leer();return}v.innerHTML=P.tab==="bilanz"?seiteBilanz():P.tab==="meine"?seiteMeine():seiteListe(+P.tab||3);if(offenS)detail(offenS.s,offenS.H,true)}
 function status(){const e=$("#status");if(!D){e.textContent=ladeFehler==="netz"?"Keine Verbindung":"Warte auf die erste Liste";return}
   e.textContent=`Aus ${D.werte} Aktien und ETFs · ${D.ki?"mit KI-Recherche":"nur Kurs-Rechnung"} · ${uhr(D.t)} Uhr${Date.now()-D.t>45*6e4?" (älter)":""}`}

@@ -147,3 +147,10 @@ details summary{cursor:pointer}
 .ziel h3{font:700 14px var(--f-body);margin:14px 0 6px}
 .tips{list-style:none;padding:0;margin:0}.tips li{padding:9px 10px;border-radius:10px;margin:6px 0;font-size:13.5px;background:var(--surface2)}
 .tips li.warn{background:var(--warn-soft)}.tips li.warn:before{content:"⚠️ "}.tips li.tipp:before{content:"💡 "}.tips li.info:before{content:"📊 "}
+
+.risk{border-left:4px solid var(--line)}.risk.hoch{border-left-color:var(--down)}.risk.mittel{border-left-color:var(--warn)}.risk.niedrig{border-left-color:var(--up)}
+.rang.r-hoch{background:var(--down-soft);color:var(--down)}.rang.r-mittel{background:var(--warn-soft);color:var(--warn)}.rang.r-niedrig{background:var(--up-soft);color:var(--up)}
+.rpunkte{font:700 22px var(--f-display)}
+.rbar{height:6px;border-radius:3px;background:var(--surface2);margin:10px 0 6px;overflow:hidden}.rbar span{display:block;height:100%;background:linear-gradient(90deg,var(--up),var(--warn) 45%,var(--down))}
+.risk.hoch .rst{color:var(--down)}.risk.mittel .rst{color:var(--warn)}.risk.niedrig .rst{color:var(--up)}.rst{font-size:13.5px}
+.tabs button{position:relative}.tabs button.alarm:after{content:"";position:absolute;top:6px;right:calc(50% - 18px);width:9px;height:9px;border-radius:50%;background:var(--down);border:2px solid var(--bg)}
