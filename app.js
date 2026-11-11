@@ -253,6 +253,10 @@ function seiteEinstieg(){const l=einstiegKandidaten(),f=P.ef||"alle",rang={guens
 function meldeKarte(){const M=(D&&D.meldungen)||{},N=MEIN.notify||{};if(!Object.keys(M).length)return "";
   return `<h2>🔔 Telegram-Benachrichtigungen</h2><div class="card">${Object.entries(M).map(([k,n])=>`<label class="sw"><input type="checkbox" data-notify="${k}"${N[k]===false?"":" checked"}><span>${esc(n)}</span></label>`).join("")}
    <label class="sw"><input type="checkbox" data-notify="nachts"${N.nachts===true?" checked":""}><span>Auch nachts (22–7 Uhr) benachrichtigen</span></label>
+   <h3 style="font:700 14px var(--f-body);margin:14px 0 4px">Farben in den Nachrichten</h3>
+   <p class="small" style="margin:0">🟢 steigt · 🟡 bleibt gleich · 🟠 aus dem Plus etwas gesunken · 🔴 fällt im Minus, oder hat vom Höchststand mehr als die Grenze verloren</p>
+   <label class="f">Rot ab Verlust vom Höchststand (Prozentpunkte)<input id="n-grenze" type="number" inputmode="decimal" step="0.1" min="0.1" value="${N.grenze??0.5}"></label>
+   <p class="small muted" style="margin-top:0">Beispiel mit ${nf(N.grenze??0.5,1)}: Eine Aktie war bei +1 % und fällt auf +${nf(Math.max(0,1-(N.grenze??0.5)),1)} % oder weniger → 🔴.</p>
    <p class="small muted">Der Bot prüft alle 5 Minuten, das Top-Depot zusätzlich etwa jede Minute, solange er läuft. Schutz-Warnungen kommen immer sofort, auch nachts. ${syncOn()?"":"Damit der Bot deine Einstellungen kennt, braucht die Haupt-App GitHub-Token und Sync-Passwort."}</p></div>`}
 
 /* ---------- Seiten ---------- */
@@ -376,7 +380,7 @@ async function entscheiden(id,antwort){const r=repo();if(!SET.ghToken||!r)return
 async function wecken(still){const r=repo();if(!SET.ghToken||!r)return toast("Dafür braucht die Haupt-App einen GitHub-Token.");
   try{const x=await fetch(`https://api.github.com/repos/${r}/actions/workflows/wachmann.yml/dispatches`,{method:"POST",headers:{Authorization:`Bearer ${SET.ghToken}`,Accept:"application/vnd.github+json"},body:JSON.stringify({ref:"main"})});
     if(!still)toast(x.status===204?"Wachmann gestartet. Neue Werte in etwa 2–5 Minuten.":"Start nicht möglich (GitHub "+x.status+")");if(x.status===204)[120,240,360].forEach(s=>setTimeout(()=>laden(true),s*1000))}catch(e){toast("Keine Verbindung zu GitHub")}}
-document.addEventListener("change",e=>{const t=e.target.closest("[data-notify]");if(!t)return;MEIN.notify=Object.assign({},MEIN.notify||{},{[t.dataset.notify]:t.checked});meinGeaendert();toast(t.checked?"Eingeschaltet":"Ausgeschaltet")});
+document.addEventListener("change",e=>{if(e.target.id==="n-grenze"){const v=+String(e.target.value).replace(",",".");if(v>0){MEIN.notify=Object.assign({},MEIN.notify||{},{grenze:v});meinGeaendert();render();toast("Grenze gespeichert")}return}const t=e.target.closest("[data-notify]");if(!t)return;MEIN.notify=Object.assign({},MEIN.notify||{},{[t.dataset.notify]:t.checked});meinGeaendert();toast(t.checked?"Eingeschaltet":"Ausgeschaltet")});
 document.addEventListener("click",e=>{const t=e.target.closest("[data-eq],[data-ef],[data-vk-zeig],[data-vk],[data-kosten],[data-ziel],[data-merk],[data-uebern],[data-uebern-zeig],[data-step],[data-pos-del],[data-ent],[data-tab],[data-f],[data-open],[data-zu],[data-wecken],#refresh,#sheet-bg");if(!t)return;
   if(t.dataset.eq){P.eq=t.dataset.eq;saveP();render();return}
   if(t.dataset.ef){P.ef=t.dataset.ef;saveP();render();return}
