@@ -163,3 +163,6 @@ details summary{cursor:pointer}
 .ezust{font-weight:700;font-size:14px;margin-top:8px}.ezust.up{color:var(--up)}.ezust.warn{color:var(--warn)}.ezust.down{color:var(--down)}.ezust.muted{color:var(--muted)}
 .card.ein{border-left:4px solid var(--line)}.card.ein.e-up{border-left-color:var(--up)}.card.ein.e-warn{border-left-color:var(--warn)}.card.ein.e-down{border-left-color:var(--down)}
 .spark.mini{height:56px;margin:4px 0}
+
+.sw{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);font-size:14px;cursor:pointer}
+.sw input{width:20px;height:20px;accent-color:var(--accent);flex:none}

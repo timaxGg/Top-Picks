@@ -96,7 +96,7 @@ function meinGeaendert(){MEIN.updatedAt=Date.now();merkeLokal();clearTimeout(mei
 async function ghC(path,opt){const r=await fetch(`https://api.github.com/repos/${repo()}/contents/${path}${opt?"":"?ref=main"}`,Object.assign({headers:{Authorization:`Bearer ${SET.ghToken}`,Accept:"application/vnd.github+json"}},opt||{}));
   if(r.status===404)return null;if(!r.ok)throw new Error("GitHub "+r.status);return r.json()}
 async function pushMein(){if(!syncOn())return;try{const cur=await ghC("data/top.enc");
-    await ghC("data/top.enc",{method:"PUT",body:JSON.stringify({message:"Top-Aktien: Merkliste und Depot",content:btoa(await encJ({merk:MEIN.merk,depot:MEIN.depot,ziel:MEIN.ziel,kosten:MEIN.kosten,verkauft:MEIN.verkauft,updatedAt:MEIN.updatedAt},SET.syncPass)),sha:cur?cur.sha:undefined,branch:"main"})});
+    await ghC("data/top.enc",{method:"PUT",body:JSON.stringify({message:"Top-Aktien: Merkliste und Depot",content:btoa(await encJ({merk:MEIN.merk,depot:MEIN.depot,ziel:MEIN.ziel,kosten:MEIN.kosten,verkauft:MEIN.verkauft,notify:MEIN.notify,updatedAt:MEIN.updatedAt},SET.syncPass)),sha:cur?cur.sha:undefined,branch:"main"})});
     MEIN.sync=Date.now();merkeLokal();wecken(true)}catch(e){toast("Abgleich nicht möglich: "+e.message)}}
 async function pullMein(){if(!syncOn())return;try{const r=await ghC("data/top.enc");if(!r)return;const m=await decJ(atob(r.content.replace(/\n/g,"")),SET.syncPass);
     if((m.updatedAt||0)>(MEIN.updatedAt||0)){MEIN=Object.assign({merk:[],depot:[],verkauft:[]},m);merkeLokal();render()}}catch(e){}}
@@ -132,6 +132,7 @@ function seiteMeine(){const dep=MEIN.depot,mk=MEIN.merk;
   return `${syncOn()?"":`<div class="card small">Ohne <b>GitHub-Token und Sync-Passwort</b> in der Haupt-App bleibt alles nur auf diesem Handy, und der Bot kann dich nicht warnen. Trag beides in der Haupt-App unter Einstellungen ein.</div>`}
   ${risikoListe()}
   ${zielSeite()}
+  ${meldeKarte()}
   <h2>Mein Top-Depot</h2>${dep.length?dep.map(pos).join(""):`<div class="card small muted">Noch nichts übernommen. Öffne eine Aktie und tippe auf „Übernehmen“, wenn du sie gekauft hast.</div>`}
   <p class="small muted">Gewinnschutz: Die Schutzlinie läuft mit deinem höchsten Plus seit Kauf mit (minus Abstand, nie unter 0). Fällt das Plus darunter, warnt der Bot. Verlustschutz: Warnung, sobald das Minus die Grenze erreicht, danach bei jedem weiteren 2 Prozentpunkten. Getrennt vom Depot im Aktien Helfer.</p>
   ${verkauftListe()}
@@ -247,6 +248,12 @@ function seiteEinstieg(){const l=einstiegKandidaten(),f=P.ef||"alle",rang={guens
   <div class="filters">${[["alle",`Alle (${l.length})`],["jetzt",`🟢 Jetzt günstig (${anz(["guenstig","wende"])})`],["warten",`🟡 Lieber warten (${anz(["ueberdehnt","messer"])})`],["neutral",`⚪ Neutral (${anz(["neutral"])})`]].map(([k,n])=>`<button data-ef="${k}" class="${f===k?"on":""}">${n}</button>`).join("")}</div>
   ${sicht.map(einstiegKarte).join("")||`<div class="card small muted">${l.length?"In diesem Filter gerade nichts.":"Noch keine Daten. Kommt mit dem nächsten Lauf des Wachmanns."}</div>`}
   <p class="small muted">Gemerkte Werte: Der Bot meldet sich in Telegram, sobald einer davon auf „Jetzt günstig“ springt. Keine Anlageberatung.</p>`}
+
+/* ---------- Telegram-Benachrichtigungen dieser App ---------- */
+function meldeKarte(){const M=(D&&D.meldungen)||{},N=MEIN.notify||{};if(!Object.keys(M).length)return "";
+  return `<h2>🔔 Telegram-Benachrichtigungen</h2><div class="card">${Object.entries(M).map(([k,n])=>`<label class="sw"><input type="checkbox" data-notify="${k}"${N[k]===false?"":" checked"}><span>${esc(n)}</span></label>`).join("")}
+   <label class="sw"><input type="checkbox" data-notify="nachts"${N.nachts===true?" checked":""}><span>Auch nachts (22–7 Uhr) benachrichtigen</span></label>
+   <p class="small muted">Der Bot prüft alle 5 Minuten, das Top-Depot zusätzlich etwa jede Minute, solange er läuft. Schutz-Warnungen kommen immer sofort, auch nachts. ${syncOn()?"":"Damit der Bot deine Einstellungen kennt, braucht die Haupt-App GitHub-Token und Sync-Passwort."}</p></div>`}
 
 /* ---------- Seiten ---------- */
 function leer(){if(ladeFehler==="repo")return `<div class="card empty"><b>Repository unbekannt</b><p class="muted">Öffne die App über deine GitHub-Pages-Adresse oder trag in der Haupt-App dein GitHub-Repository ein.</p><a class="btn ghost" href="${HAUPT_APP}">Zur Haupt-App</a></div>`;
@@ -369,6 +376,7 @@ async function entscheiden(id,antwort){const r=repo();if(!SET.ghToken||!r)return
 async function wecken(still){const r=repo();if(!SET.ghToken||!r)return toast("Dafür braucht die Haupt-App einen GitHub-Token.");
   try{const x=await fetch(`https://api.github.com/repos/${r}/actions/workflows/wachmann.yml/dispatches`,{method:"POST",headers:{Authorization:`Bearer ${SET.ghToken}`,Accept:"application/vnd.github+json"},body:JSON.stringify({ref:"main"})});
     if(!still)toast(x.status===204?"Wachmann gestartet. Neue Werte in etwa 2–5 Minuten.":"Start nicht möglich (GitHub "+x.status+")");if(x.status===204)[120,240,360].forEach(s=>setTimeout(()=>laden(true),s*1000))}catch(e){toast("Keine Verbindung zu GitHub")}}
+document.addEventListener("change",e=>{const t=e.target.closest("[data-notify]");if(!t)return;MEIN.notify=Object.assign({},MEIN.notify||{},{[t.dataset.notify]:t.checked});meinGeaendert();toast(t.checked?"Eingeschaltet":"Ausgeschaltet")});
 document.addEventListener("click",e=>{const t=e.target.closest("[data-eq],[data-ef],[data-vk-zeig],[data-vk],[data-kosten],[data-ziel],[data-merk],[data-uebern],[data-uebern-zeig],[data-step],[data-pos-del],[data-ent],[data-tab],[data-f],[data-open],[data-zu],[data-wecken],#refresh,#sheet-bg");if(!t)return;
   if(t.dataset.eq){P.eq=t.dataset.eq;saveP();render();return}
   if(t.dataset.ef){P.ef=t.dataset.ef;saveP();render();return}
