@@ -174,11 +174,15 @@ function zielSeite(){const Z=MEIN.ziel||{wert:1,je:"tag"},zt=proTag(Z.wert,JE[Z.
   tips.push(["tipp","Plane vor jedem Kauf, wann du verkaufst: Ziel, Stop und Zeitraum. Der Gewinn- und Verlustschutz hier hilft dabei, die Entscheidung triffst aber du."]);
   return `<h2>🎯 Mein Ziel</h2><div class="card ziel"><form onsubmit="return false" class="zielform"><label class="f">Gewinn-Ziel in %<input id="z-wert" type="number" inputmode="decimal" step="any" min="0" value="${Z.wert}"></label>
    <label class="f">Zeitraum<select id="z-je">${Object.entries(JE).map(([k,v])=>`<option value="${k}"${Z.je===k?" selected":""}>${v.n}</option>`).join("")}</select></label><button class="btn" data-ziel>Speichern</button></form>
-   <h3>Kosten und Steuern</h3><form onsubmit="return false" class="zielform">${(()=>{const K=Object.assign({gebuehr:1,einsatz:1000,spread:.1,steuer:26.375},MEIN.kosten||{});
-     return `<label class="f">Gebühr je Order (€)<input id="k-g" type="number" inputmode="decimal" step="any" min="0" value="${K.gebuehr}"></label><label class="f">Einsatz je Kauf (€)<input id="k-e" type="number" inputmode="decimal" step="any" min="1" value="${K.einsatz}"></label>
-     <label class="f">Spread (%, Kauf+Verkauf)<input id="k-s" type="number" inputmode="decimal" step="any" min="0" value="${K.spread}"></label><label class="f">Steuer auf Gewinne (%)<input id="k-t" type="number" inputmode="decimal" step="any" min="0" value="${K.steuer}"></label>`})()}
+   <h3>Kosten und Steuern</h3><form onsubmit="return false" class="zielform">${(()=>{const K=kostenEin(),rt=kostenRT(K);
+     return `<label class="f" style="grid-column:1/-1">Broker<select id="k-b">${Object.entries(BROKER).map(([k,b])=>`<option value="${k}"${K.broker===k?" selected":""}>${esc(b.n)}</option>`).join("")}</select></label>
+     <label class="f" style="grid-column:1/-1">Wie viel setzt du pro Kauf ein? (€)<input id="k-e" type="number" inputmode="decimal" step="any" min="1" value="${K.einsatz}"></label>
+     <label class="f">Gebühr je Order (€)<input id="k-g" type="number" inputmode="decimal" step="any" min="0" value="${K.gebuehr}"></label><label class="f">Spread (%, Kauf+Verkauf)<input id="k-s" type="number" inputmode="decimal" step="any" min="0" value="${K.spread}"></label>
+     <label class="f">Steuer auf Gewinne (%)<input id="k-t" type="number" inputmode="decimal" step="any" min="0" value="${K.steuer}"></label><label class="f">Freibetrag übrig (€, Freistellungsauftrag)<input id="k-f" type="number" inputmode="decimal" step="any" min="0" value="${K.frei}"></label>
+     <div class="kvor" style="grid-column:1/-1">Bei <b>${nf(K.einsatz,0)} €</b> kostet ein Kauf und Verkauf zusammen etwa <b>${nf(rt.euro,2)} € = ${nf(rt.proz,2)} %</b>. Ab diesem Anstieg bist du im Plus.
+      <span class="small">${[100,250,500,1000,2500].map(e=>`${nf(e,0)} € → ${nf(kostenRT(Object.assign({},K,{einsatz:e})).proz,2)} %`).join(" · ")}</span></div>`})()}
      <button class="btn ghost" data-kosten>Kosten speichern</button></form>
-   <p class="small muted">Steuer: 26,375 % = Abgeltungsteuer + Soli, mit Kirchensteuer etwa 27,8 %. Der Freibetrag (1.000 € im Jahr) ist nicht eingerechnet, das ist vorsichtig gerechnet. Die Liste rechnet ab dem nächsten Lauf mit deinen Werten.</p>
+   <p class="small muted">Trade Republic (Stand 2026): 1 € je Kauf oder Verkauf bei der Bestpreis-Order, 2 € bei Direktpreis an einer Börse, Sparpläne kostenlos. Der Spread ist nicht fest: bei großen Aktien zu Börsenzeiten meist klein (etwa 0,05–0,2 %), bei kleinen Werten und abends größer. Die Steuer zieht Trade Republic automatisch ab: 26,375 % (Abgeltungsteuer + Soli), mit Kirchensteuer etwa 27,8 %. Solange dein Freistellungsauftrag (bis 1.000 € im Jahr, Paare 2.000 €) nicht aufgebraucht ist, zahlst du keine Steuer. Die Liste rechnet ab dem nächsten Lauf mit deinen Werten.</p>
    ${D&&D.noetig?`<p class="small">Damit nach Kosten und Steuern dein Ziel übrig bleibt, muss eine Aktie in <b>3 Tagen ${pz(D.noetig[3],1)}</b> und in <b>7 Tagen ${pz(D.noetig[7],1)}</b> steigen. Ins Plus kommst du ab ${pz(D.kostenRT,2)}.</p>`:""}
    <p class="small">Das sind <b>${pz(zt,2)}</b> pro Handelstag, aufs Jahr gerechnet etwa <b>${jz>1e6?"über 1.000.000 %":pz(jz,0)}</b>.</p>
    <table><tr><th>Liste</th><th>Test pro Tag*</th><th>echt pro Tag*</th><th>Ziel erreicht</th></tr>${zeilen.map(z=>`<tr><td>${z.H} Tage</td><td class="${kl(z.testT)}">${z.testT!=null?pz(z.testT,3):"–"}</td><td class="${kl(z.liveT)}">${z.liveT!=null?pz(z.liveT,3):"–"}</td><td>${z.quote!=null?z.quote+" %":z.tq?`Test: ${z.tq.q} %`:"–"}</td></tr>`).join("")}
@@ -218,9 +222,13 @@ function risikoListe(){if(!MEIN.depot.length)return "";const l=MEIN.depot.map(ri
 
 
 /* ---------- Verkaufen: Gewinn nach Kosten und Steuern festhalten ---------- */
-function kostenEin(){return Object.assign({gebuehr:1,einsatz:1000,spread:.1,steuer:26.375},MEIN.kosten||{})}
-function abrechnung(k,vk,q){const K=kostenEin(),brutto=(vk-k)*q,kosten=2*K.gebuehr+(K.spread/100)*(k*q+vk*q)/2,vorSt=brutto-kosten,steuer=vorSt>0?vorSt*K.steuer/100:0;
-  return {brutto,kosten,steuer,netto:vorSt-steuer,proz:(vorSt-steuer)/(k*q)*100}}
+const BROKER={tr:{n:"Trade Republic (Bestpreis, 1 €)",gebuehr:1,spread:.1},trd:{n:"Trade Republic (Direktpreis, 2 €)",gebuehr:2,spread:.1},eigen:{n:"Eigene Werte",gebuehr:null,spread:null}};
+function kostenEin(){return Object.assign({broker:"tr",gebuehr:1,einsatz:1000,spread:.1,steuer:26.375,frei:0},MEIN.kosten||{})}
+const kostenRT=K=>{const euro=2*K.gebuehr+(K.spread/100)*K.einsatz;return {euro,proz:euro/K.einsatz*100}};
+// Freibetrag: was dieses Jahr schon durch Verkäufe verbraucht wurde, wird abgezogen
+function freiUebrig(){const K=kostenEin(),jahr=String(new Date().getFullYear());const verbraucht=(MEIN.verkauft||[]).filter(v=>new Date(v.t).getFullYear()+""===jahr).reduce((a,v)=>a+Math.max(0,v.vorSt??0),0);return Math.max(0,(K.frei||0)-verbraucht)}
+function abrechnung(k,vk,q){const K=kostenEin(),brutto=(vk-k)*q,kosten=2*K.gebuehr+(K.spread/100)*(k*q+vk*q)/2,vorSt=brutto-kosten,frei=freiUebrig(),steuer=vorSt>frei?(vorSt-Math.max(0,frei))*K.steuer/100:0;
+  return {brutto,kosten,steuer,vorSt,netto:vorSt-steuer,proz:(vorSt-steuer)/(k*q)*100}}
 function verkauftListe(){const l=MEIN.verkauft||[];if(!l.length)return "";const sum=l.reduce((a,v)=>a+v.netto,0);
   return `<h2>Verkauft</h2><div class="card" style="padding:4px 12px">${l.slice().reverse().slice(0,30).map(v=>`<div class="row"><div class="nm"><b style="font-size:14.5px">${esc(v.n)}</b><span>${nf(v.q,v.q%1?2:0)} Stk. · ${dez(v.k)} → ${dez(v.vk)} ${esc(v.c||"")} · ${datum(new Date(v.t).toISOString().slice(0,10))} · ${v.tage} ${v.tage===1?"Tag":"Tage"} gehalten</span></div>
    <div class="px"><span class="${kl(v.netto)}">${v.netto>=0?"+":"−"}${nf(Math.abs(v.netto),2)}</span><small class="${kl(v.proz)}">${pz(v.proz)} netto</small></div></div>`).join("")}
@@ -453,7 +461,8 @@ async function entscheiden(id,antwort){const r=repo();if(!SET.ghToken||!r)return
 async function wecken(still){const r=repo();if(!SET.ghToken||!r)return toast("Dafür braucht die Haupt-App einen GitHub-Token.");
   try{const x=await fetch(`https://api.github.com/repos/${r}/actions/workflows/wachmann.yml/dispatches`,{method:"POST",headers:{Authorization:`Bearer ${SET.ghToken}`,Accept:"application/vnd.github+json"},body:JSON.stringify({ref:"main"})});
     if(!still)toast(x.status===204?"Wachmann gestartet. Neue Werte in etwa 2–5 Minuten.":"Start nicht möglich (GitHub "+x.status+")");if(x.status===204)[120,240,360].forEach(s=>setTimeout(()=>laden(true),s*1000))}catch(e){toast("Keine Verbindung zu GitHub")}}
-document.addEventListener("change",e=>{if(e.target.id==="n-grenze"){const v=+String(e.target.value).replace(",",".");if(v>0){MEIN.notify=Object.assign({},MEIN.notify||{},{grenze:v});meinGeaendert();render();toast("Grenze gespeichert")}return}const t=e.target.closest("[data-notify]");if(!t)return;MEIN.notify=Object.assign({},MEIN.notify||{},{[t.dataset.notify]:t.checked});meinGeaendert();toast(t.checked?"Eingeschaltet":"Ausgeschaltet")});
+document.addEventListener("change",e=>{if(e.target.id==="k-b"){const b=BROKER[e.target.value];if(b&&b.gebuehr!=null){$("#k-g").value=b.gebuehr;$("#k-s").value=b.spread}return}
+if(e.target.id==="n-grenze"){const v=+String(e.target.value).replace(",",".");if(v>0){MEIN.notify=Object.assign({},MEIN.notify||{},{grenze:v});meinGeaendert();render();toast("Grenze gespeichert")}return}const t=e.target.closest("[data-notify]");if(!t)return;MEIN.notify=Object.assign({},MEIN.notify||{},{[t.dataset.notify]:t.checked});meinGeaendert();toast(t.checked?"Eingeschaltet":"Ausgeschaltet")});
 document.addEventListener("click",e=>{const t=e.target.closest("[data-eq],[data-ef],[data-vk-zeig],[data-vk],[data-kosten],[data-ziel],[data-merk],[data-uebern],[data-uebern-zeig],[data-step],[data-pos-del],[data-ent],[data-tab],[data-f],[data-open],[data-zu],[data-wecken],#refresh,#sheet-bg");if(!t)return;
   if(t.dataset.eq){P.eq=t.dataset.eq;saveP();render();return}
   if(t.dataset.ef){P.ef=t.dataset.ef;saveP();render();return}
@@ -461,9 +470,9 @@ document.addEventListener("click",e=>{const t=e.target.closest("[data-eq],[data-
   if(t.dataset.vk){const d=MEIN.depot.find(x=>x.id===t.dataset.vk);if(!d)return;const f=t.closest("form"),v=n=>+String(f.elements[n].value).replace(",",".");const vk=v("vk"),q=Math.min(d.q,v("q"));
     if(!(vk>0)||!(q>0))return toast("Bitte Verkaufskurs und Stück eintragen.");const a=abrechnung(d.k,vk,q);
     if(!confirm(`${d.n}: ${nf(q,q%1?2:0)} Stück zu ${dez(vk)} verkauft?\nNach Kosten und Steuern etwa ${a.netto>=0?"+":"−"}${nf(Math.abs(a.netto),2)} (${pz(a.proz)}).`))return;
-    MEIN.verkauft=(MEIN.verkauft||[]).concat({s:d.s,n:d.n,c:d.cur||"",k:d.k,vk,q,t:Date.now(),tage:Math.max(1,Math.round((Date.now()-d.t)/864e5)),netto:+a.netto.toFixed(2),proz:+a.proz.toFixed(2)}).slice(-200);
+    MEIN.verkauft=(MEIN.verkauft||[]).concat({s:d.s,n:d.n,c:d.cur||"",k:d.k,vk,q,t:Date.now(),tage:Math.max(1,Math.round((Date.now()-d.t)/864e5)),netto:+a.netto.toFixed(2),proz:+a.proz.toFixed(2),vorSt:+a.vorSt.toFixed(2),steuer:+a.steuer.toFixed(2)}).slice(-200);
     if(q>=d.q-1e-9)MEIN.depot=MEIN.depot.filter(x=>x!==d);else d.q=+(d.q-q).toFixed(6);meinGeaendert();render();toast("Verkauf gespeichert.");return}
-  if(t.hasAttribute("data-kosten")){const v=id=>+String($(id).value).replace(",",".");const K={gebuehr:Math.max(0,v("#k-g")||0),einsatz:Math.max(1,v("#k-e")||1000),spread:Math.max(0,v("#k-s")||0),steuer:Math.min(60,Math.max(0,v("#k-t")||0))};
+  if(t.hasAttribute("data-kosten")){const v=id=>+String($(id).value).replace(",",".");const K={broker:$("#k-b").value,gebuehr:Math.max(0,v("#k-g")||0),einsatz:Math.max(1,v("#k-e")||1000),spread:Math.max(0,v("#k-s")||0),steuer:Math.min(60,Math.max(0,v("#k-t")||0)),frei:Math.max(0,v("#k-f")||0)};
     MEIN.kosten=K;meinGeaendert();render();toast(syncOn()?"Gespeichert. Die Liste rechnet ab dem nächsten Lauf damit (2–5 Min.).":"Gespeichert (nur auf diesem Handy, für die Liste braucht es den Abgleich).");return}
   if(t.hasAttribute("data-ziel")){const w=+String($("#z-wert").value).replace(",",".");if(!(w>0))return toast("Bitte ein Ziel über 0 eintragen.");MEIN.ziel={wert:w,je:$("#z-je").value};meinGeaendert();render();toast("Ziel gespeichert");return}
   if(t.dataset.merk){e.stopPropagation();merken(t.dataset.merk,t.dataset.n);if(offenS)detail(offenS.s,offenS.H,true);return}
