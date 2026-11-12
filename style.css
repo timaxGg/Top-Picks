@@ -185,3 +185,6 @@ details summary{cursor:pointer}
 .ezust.vor{color:var(--accent)}
 .halte{background:var(--acc-soft);border-radius:10px;padding:8px 10px;margin:8px 0;font-size:13.5px}.halte b{color:var(--accent)}
 .kvor{background:var(--surface2);border-radius:10px;padding:8px 10px;font-size:13.5px;margin:4px 0 8px}.kvor .small{display:block;margin-top:4px;color:var(--muted)}
+.aus summary{cursor:pointer;list-style:none}.aus summary::-webkit-details-marker{display:none}.aus b{color:inherit}
+.austab{width:100%;border-collapse:collapse;font-size:12.5px;margin:6px 0}.austab th,.austab td{padding:3px 4px;text-align:right;border-bottom:1px solid var(--line,#2a3352)}.austab th:first-child,.austab td:first-child{text-align:left}.austab tr.best td{font-weight:700;color:var(--accent)}
+.lnk{background:none;border:0;color:var(--accent);font-size:12px;padding:2px 0;cursor:pointer;text-decoration:underline;display:block}
