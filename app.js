@@ -118,10 +118,11 @@ function meinBox(x){const pos=MEIN.depot.filter(d=>d.s===x.s),k=kurs(x),al=Math.
     <label class="f">Stück<input name="q" type="number" inputmode="decimal" step="any" min="0" value="1"></label>
     <label class="f">Verlustschutz: warnen ab Minus von (%)<input name="a" type="number" inputmode="decimal" step="any" min="0" value="${al}"></label>
     <label class="f">Gewinnschutz: Abstand zum Höchstwert (Prozentpunkte, 0 = aus)<input name="nl" type="number" inputmode="decimal" step="any" min="0" value="${nl}"></label>
+    <label class="f">Halten bis (Bot erinnert dich an dem Tag)<input name="bis" type="date" value="${(halte(x)||{}).iso||""}"></label>
     <button class="btn" data-uebern="${esc(x.s)}" data-n="${esc(x.n)}" data-cur="${esc(x.cur||"")}">In mein Top-Depot übernehmen</button></form></div>`}
 function seiteMeine(){const dep=MEIN.depot,mk=MEIN.merk;
   const pos=d=>{const w=wert(d.s),x=w?w.x:null,sc=SCHUTZ[d.id]||{},p=x?kurs(x).p:(sc.p||d.k),ch=(p/d.k-1)*100,c=x?cs(x):(CS[d.cur]||d.cur||""),a=-Math.abs(d.a??10),warnV=ch<=a,gs=d.nl!==0;
-    return `<div class="card pos${sc.warn||warnV?" warnt":""}"><div class="sig-top"><div class="nm"><b>${esc(d.n)}</b><span>${esc(d.s)} · ${nf(d.q,d.q%1?2:0)} Stk. · Kauf ${dez(d.k)} ${c} · seit ${datum(new Date(d.t).toISOString().slice(0,10))}</span></div>
+    return `<div class="card pos${sc.warn||warnV?" warnt":""}"><div class="sig-top"><div class="nm"><b>${esc(d.n)}</b><span>${esc(d.s)} · ${nf(d.q,d.q%1?2:0)} Stk. · Kauf ${dez(d.k)} ${c} · seit ${datum(new Date(d.t).toISOString().slice(0,10))}${d.bis?` · halten bis ${datum(d.bis)}`:""}</span></div>
      <div class="px"><span>${dez(p)} ${c}</span><small class="${kl(ch)}">${pz(ch)} seit Kauf</small></div></div>
      <div class="small ${kl(ch)}" style="text-align:right">${(p-d.k)*d.q>=0?"+":"−"}${nf(Math.abs((p-d.k)*d.q),2)} ${c}</div>
      <div class="schutz"><div><i>🛡️ Gewinnschutz</i>${gs?`<b>${sc.lv!=null?`Schutzlinie ${pz(sc.lv)}`:"aktiv"}</b><small>${sc.ref!=null?`Höchststand ${pz(sc.ref)} · `:""}Abstand ${nf(d.nl>0?d.nl:.5,1)} Pkt.</small>`:"<b>aus</b>"}
@@ -202,6 +203,7 @@ function risiko(d){const w=wert(d.s),x=w?w.x:null,sc=SCHUTZ[d.id]||{},p=x?kurs(x
     if(x.rsi!=null&&x.rsi<30)add(5,`Stark verkauft (RSI ${x.rsi})`);
     if(x.schwankungJahr>50)add(5,`Schwankt stark (${x.schwankungJahr} % pro Jahr)`);
     const neg=(x.muster||[]).filter(m=>m.urteil==="eher negativ");if(neg.length)add(8,`Muster mit eher negativem Rückblick: ${neg.map(m=>m.n).join(", ")} ⚠️ unsicher`)}
+  if(d.bis&&new Date().toISOString().slice(0,10)>=d.bis)add(15,`Geplante Haltedauer bis ${datum(d.bis)} ist vorbei`);
   const li=inListen(d.s);if(!li.length&&ch<0)add(10,"Im Minus und in keiner aktuellen Liste mehr");
   if(li.length){pt-=5;g.push(`Spricht dagegen: steht in der Liste (${li.join(", ")})`)}
   if(!x)g.push("Für diesen Wert fehlen gerade Kursdaten");
@@ -244,7 +246,7 @@ function einstiegPlan(x){const be0=besterEinstieg(x),e=x.einstieg,k=kurs(x),zt=e
     if(uhr)z.push(`Ist er dort, am ehesten ${uhr} kaufen.`);if(st.wartenAvg!=null&&st.sofortAvg!=null&&st.wartenAvg<=st.sofortAvg)z.push(`<span class="warn">Ehrlich: Im Rückblick hat Warten bei solchen Werten nicht mehr gebracht als sofort kaufen. Der Kurs lief oft einfach weiter.</span>`)}
   else if(e.z==="messer"){z.push(`<b>Jetzt nicht.</b> Der Kurs fällt noch.`);z.push(`Erst wenn er an einem Tag über <b>${dez(e.ziel)} ${cs(x)}</b> schließt (${pz(e.zielAbst)}), ist die Wende da. Dann am nächsten Tag${uhr?" "+uhr:""} kaufen.`)}
   else{z.push(`<b>Weder günstig noch teuer.</b> Kein besonderer Grund, jetzt zu kaufen oder zu warten.`);if(uhr)z.push(`Wenn du kaufst, dann am ehesten ${uhr}.`)}
-  if(x.noetig!=null)z.push(`Danach: Für dein Ziel muss der Kurs in ${x.H||3} Tagen um ${pz(x.noetig,1)} steigen. Setz Gewinn- und Verlustschutz direkt beim Übernehmen.`);
+  const hb=halteBox(x);if(hb)z.push(hb);z.push(`Setz Gewinn- und Verlustschutz direkt beim Übernehmen. „Halten bis“ ist dort schon eingetragen, dann erinnert dich der Bot am letzten Tag.`);
   return (be0?`<div class="bestein">🗓️ Bester Einstieg (Schätzung): <b>${esc(be0.txt)}</b>${be0.bed?`<br><span class="small">${esc(be0.bed)}</span>`:""}</div>`:"")+z.map(t=>`<p class="small">${t}</p>`).join("")+`<p class="small muted">Tage ohne Feiertage gerechnet. Schätzung aus dem Rückblick, keine Vorhersage.</p>`}
 function heuteGraph(x){const e=x.einstieg,h=e.heute||[];if(h.length<3)return `<p class="small muted">Heute noch kein Handel für diesen Wert.</p>`;
   const v=h.map(a=>a[1]),all=[...v,...(e.ziel?[e.ziel]:[])],lo=Math.min(...all),hi=Math.max(...all),W=600,Hh=110,Y=y=>Hh-14-(y-lo)/(hi-lo||1)*(Hh-24),X=i=>i/(h.length-1)*W;
@@ -273,6 +275,7 @@ function einstiegKarte(x){const e=x.einstieg,k=kurs(x),st=e.stat||{},s3=st[3]||{
     <div><i>${e.z==="messer"?"Wende ab Kurs":"Einstiegszone"}</i><b>${w?dez(e.ziel):gut?"jetzt":"–"}</b>${w?`<small>${pz(e.zielAbst)}</small>`:""}</div><div><i>Rückblick 3 T.</i><b class="${kl(s3.avg)}">${s3.n?pz(s3.avg):"–"}</b><small>${s3.n?s3.plus+" % im Plus":""}</small></div></div>
    ${w&&st.faelle?`<p class="small">${e.z==="messer"?`Früher stieg der Kurs in <b>${st.erreicht} %</b> der Fälle innerhalb von 10 Handelstagen wieder über diese Marke`:`Früher kam der Kurs in <b>${st.erreicht} %</b> der Fälle innerhalb von 10 Handelstagen in diese Zone`}${st.medTage?`, meist nach etwa <b>${st.medTage} Tagen</b>`:""}. ${warten}</p>`:""}
    ${(()=>{const be=besterEinstieg(x);return be?`<div class="bestein">🗓️ Bester Einstieg (Schätzung): <b>${esc(be.txt)}</b>${be.bed?`<br><span class="small">${esc(be.bed)}</span>`:""}</div>`:""})()}
+   ${["guenstig","wende","ueberdehnt","messer"].includes(e.z)?halteBox(x):""}
    ${e.zeit&&e.zeit.best?`<p class="small">🕒 Günstigste Uhrzeit im Rückblick: <b>${e.zeit.best.t} Uhr</b> (Tagestief dort an ${e.zeit.best.tief} % der Tage)</p>`:""}
    ${gut&&s3.n?`<p class="small">Kauf in diesem Zustand brachte im Rückblick in 3 Tagen Ø ${pz(s3.avg)}, in 7 Tagen Ø ${pz(s7.avg)} (nach Kosten).</p>`:""}</div>`}
 function seiteEinstieg(){const l=einstiegKandidaten(),f=P.ef||"alle",rang={guenstig:0,wende:1,neutral:2,ueberdehnt:3,messer:4};
@@ -377,6 +380,14 @@ const tagTxt=d=>`${WT[d.getDay()]} ${d.getDate()}.${d.getMonth()+1}.`;
 const plus30=t=>{const [h,m]=t.split(":").map(Number),z=h*60+m+30;return String(Math.floor(z/60)%24).padStart(2,"0")+":"+String(z%60).padStart(2,"0")};
 function standTxt(x){const k=kurs(x);return `Stand ${uhr(D.t)} Uhr · Kurs von ${k.t?new Date(k.t).toLocaleString("de-DE",{weekday:"short",hour:"2-digit",minute:"2-digit"}):"–"}`}
 // Bester künftiger Einstieg: Tag (aus „meist nach N Tagen“) + Uhrzeit (aus dem Tagestief-Muster). Immer eine Schätzung.
+
+// Haltedauer: Listen-Zeitraum, sonst der Zeitraum (3 oder 7 Tage), der im Rückblick für diesen Einstiegs-Zustand mehr gebracht hat
+function halte(x){const e=x.einstieg;if(!e)return null;const be=besterEinstieg(x),hi=(D.einstiegInfo&&D.einstiegInfo.halte)||{},H=x.platz&&x.H?x.H:(hi[e.z]||3);
+  const start=be&&!be.jetzt&&be.tag!=="heute"?handelstag(Math.max(1,be.n)):new Date(),ende=new Date(start);let k=0;while(k<H){ende.setDate(ende.getDate()+1);if(ende.getDay()%6)k++}
+  const st=(e.stat||{})[H],zt=e.zeit&&e.zeit.teuer;
+  return {H,start,ende,txt:`von ${be&&be.jetzt?"jetzt":tagTxt(start)} bis ca. ${tagTxt(ende)} (${H} Handelstage)`,raus:zt?zt.t:null,st,iso:`${ende.getFullYear()}-${String(ende.getMonth()+1).padStart(2,"0")}-${String(ende.getDate()).padStart(2,"0")}`}}
+function halteBox(x){const h=halte(x);if(!h)return "";
+  return `<div class="halte">⏳ Halten: <b>${esc(h.txt)}</b>${h.raus?`, am letzten Tag am ehesten gegen ${h.raus} Uhr verkaufen`:""}.<br><span class="small">Früher raus, wenn${x.noetig!=null?` dein Ziel (${pz(x.noetig,1)})`:" dein Ziel"} erreicht ist oder Gewinn- bzw. Verlustschutz auslöst.${h.st&&h.st.n?` Im Rückblick brachte dieser Zustand nach ${h.H} Tagen Ø ${pz(h.st.avg)} (${h.st.plus} % im Plus).`:""}</span></div>`}
 function besterEinstieg(x){const e=x.einstieg;if(!e)return null;const z=e.zeit&&e.zeit.best,st=e.stat||{},jetzt=new Date(),hm=jetzt.getHours()*60+jetzt.getMinutes(),wt=jetzt.getDay()%6!==0;
   const fenster=z?`${z.t}–${plus30(z.t)} Uhr`:"";let tag,bed="",n=0;
   let jetztDrin=false;
@@ -458,7 +469,7 @@ document.addEventListener("click",e=>{const t=e.target.closest("[data-eq],[data-
   if(t.dataset.merk){e.stopPropagation();merken(t.dataset.merk,t.dataset.n);if(offenS)detail(offenS.s,offenS.H,true);return}
   if(t.hasAttribute("data-uebern-zeig")){const f=t.closest(".mein").querySelector(".uebern");f.hidden=!f.hidden;return}
   if(t.dataset.uebern){const f=t.closest("form"),v=n=>+String(f.elements[n].value).replace(",",".");const k=v("k"),q=v("q");if(!(k>0)||!(q>0))return toast("Bitte Kaufkurs und Stück eintragen.");
-    MEIN.depot.push({id:"p"+Date.now().toString(36),s:t.dataset.uebern,n:t.dataset.n,cur:t.dataset.cur,k,q,a:Math.abs(v("a")||0),nl:Math.max(0,v("nl")||0),t:Date.now()});
+    MEIN.depot.push({id:"p"+Date.now().toString(36),s:t.dataset.uebern,n:t.dataset.n,cur:t.dataset.cur,k,q,a:Math.abs(v("a")||0),nl:Math.max(0,v("nl")||0),bis:f.elements.bis&&f.elements.bis.value||undefined,t:Date.now()});
     if(!istGemerkt(t.dataset.uebern))MEIN.merk.push({s:t.dataset.uebern,n:t.dataset.n,t:Date.now()});meinGeaendert();toast(syncOn()?"Übernommen. Der Bot überwacht ab dem nächsten Lauf.":"Übernommen (nur auf diesem Handy).");detail(offenS.s,offenS.H,true);return}
   if(t.dataset.step){const [id,f,dlt]=t.dataset.step.split(":"),d=MEIN.depot.find(x=>x.id===id);if(!d)return;
     if(f==="nl")d.nl=Math.max(0,+((d.nl>0?d.nl:d.nl===0?0:.5)+ +dlt).toFixed(1));else d.a=Math.max(0,Math.abs(d.a??10)+ +dlt);meinGeaendert();render();return}

@@ -183,3 +183,4 @@ details summary{cursor:pointer}
 .bestein{background:var(--up-soft);border-radius:10px;padding:8px 10px;margin:8px 0;font-size:13.5px}.bestein b{color:var(--up)}
 .xachse .heute{color:var(--fg)}
 .ezust.vor{color:var(--accent)}
+.halte{background:var(--acc-soft);border-radius:10px;padding:8px 10px;margin:8px 0;font-size:13.5px}.halte b{color:var(--accent)}
