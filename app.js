@@ -247,7 +247,7 @@ function einstiegKandidaten(){if(!D)return [];const m=new Map(),q=P.eq||(D.einst
   return [...m.values()]}
 // Plan in Worten: wann und zu welchem Kurs einsteigen, Uhrzeit aus dem Rückblick
 function einstiegPlan(x){const be0=besterEinstieg(x),e=x.einstieg,k=kurs(x),zt=e.zeit,st=e.stat||{},sdT=x.sdTag||0,lim=k.p*Math.exp(-.5*sdT),bis=t=>{const [h,m]=t.split(":").map(Number),z=h*60+m+30;return String(Math.floor(z/60)%24).padStart(2,"0")+":"+String(z%60).padStart(2,"0")};
-  const uhr=zt&&zt.best?`zwischen <b>${zt.best.t} und ${bis(zt.best.t)} Uhr</b> (dort lag das Tagestief an ${zt.best.tief} % von ${zt.tage} Tagen)`:"",z=[];
+  const uhr=zt&&zt.best?`zwischen <b>${zt.best.t} und ${zt.best.bis||bis(zt.best.t)} Uhr</b> (dort lag das Tagestief an ${zt.best.tief} % von ${zt.tage} Tagen)`:"",z=[];
   if(e.z==="guenstig"||e.z==="wende"){z.push(be0&&be0.jetzt?`<b>Jetzt ist ein guter Moment.</b> Der Kurs hat nachgegeben, der Trend zeigt nach oben.`:be0&&be0.tag==="heute"?`<b>Günstig, der beste Moment kommt heute noch.</b> Der Kurs hat nachgegeben, der Trend zeigt nach oben. Bis zur Uhrzeit unten abwarten.`:`<b>Vorankündigung: günstig, aber der beste Moment ist erst ${esc(be0?be0.tag:"am nächsten Handelstag")}.</b> Jetzt noch nicht kaufen. Zur Uhrzeit schickt der Bot eine Nachricht, ob es dann noch gilt.`);
     if(uhr)z.push(`Am günstigsten war es im Rückblick meist ${uhr}.`);z.push(`Idee: Kauf-Limit knapp unter dem Kurs, bei etwa <b>${dez(lim)} ${cs(x)}</b> (eine halbe Tagesschwankung tiefer). Wird es heute nicht ausgeführt, morgen neu prüfen.`)}
   else if(e.z==="ueberdehnt"){z.push(`<b>Jetzt eher nicht.</b> Der Kurs ist gerade oben auf dem Berg.`);
@@ -266,8 +266,8 @@ function heuteGraph(x){const e=x.einstieg,h=e.heute||[];if(h.length<3)return `<p
    <p class="small muted">Heute, alle 15 Minuten, deutsche Zeit${e.ziel?' · <span style="color:var(--accent)">- - Einstiegsmarke</span>':""}. Tief heute: ${dez(Math.min(...v))} um ${h[v.indexOf(Math.min(...v))][0]} Uhr. Letzter Wert ${h[h.length-1][0]} Uhr · ${standTxt(x)}.</p>`}
 function tagGraph(x){const z=x.einstieg.zeit;if(!z||!z.b||!z.b.length)return `<p class="small muted">Für die Uhrzeit fehlen noch Daten (kommt mit dem nächsten Lauf).</p>`;
   const mx=Math.max(...z.b.map(b=>b.tief),1);
-  return `<div class="tagbars">${z.b.map(b=>`<div class="${z.best&&b.t===z.best.t?"best":""}" title="${b.t}: Tagestief an ${b.tief} % der Tage"><span style="height:${Math.max(3,b.tief/mx*100)}%"></span><i>${b.t.endsWith(":00")||b.t.endsWith(":30")&&z.b.length<12?b.t.replace(":00",""):""}</i></div>`).join("")}</div>
-   <p class="small muted">Wie oft das Tagestief in dieser halben Stunde lag (letzte ${z.tage} Handelstage, deutsche Zeit). Hoch = dort war es oft am günstigsten. Muster über viele Tage, an einzelnen Tagen kann es ganz anders laufen.</p>`}
+  return `<div class="tagbars">${z.b.map(b=>`<div class="${z.best&&(z.best.bis?b.t>=z.best.t&&b.t<z.best.bis:b.t===z.best.t)?"best":""}" title="${b.t}: Tagestief an ${b.tief} % der Tage"><span style="height:${Math.max(3,b.tief/mx*100)}%"></span><i>${z.b.length>60?(b.t.endsWith(":00")&&+b.t.slice(0,2)%2===0?b.t.slice(0,2):""):b.t.endsWith(":00")||b.t.endsWith(":30")&&z.b.length<12?b.t.replace(":00",""):""}</i></div>`).join("")}</div>
+   <p class="small muted">${z.m?`Wie oft das Tagestief in diesen 5 Minuten lag. Hervorgehoben: das beste ${z.m}-Minuten-Fenster`:"Wie oft das Tagestief in dieser halben Stunde lag"} (letzte ${z.tage} Handelstage, deutsche Zeit). Hoch = dort war es oft am günstigsten. Muster über viele Tage, an einzelnen Tagen kann es ganz anders laufen.</p>`}
 function einstiegDetail(x){if(!x.einstieg)return "";const e=x.einstieg;
   return `<div class="card ein e-${ZFARBE[e.z]}">${(zs=>`<div class="ezust ${zs.vor?"vor":ZFARBE[e.z]}" style="margin-top:0">${zs.i} ${esc(zs.t)}</div>`)(zustandText(x))}${einstiegPlan(x)}
    <h3 class="h3">Heute</h3>${heuteGraph(x)}<h3 class="h3">Zu welcher Uhrzeit war es meist am günstigsten?</h3>${tagGraph(x)}</div>`}
@@ -386,7 +386,7 @@ const WT=["So.","Mo.","Di.","Mi.","Do.","Fr.","Sa."];
 const dmy=md=>{const [m,d]=String(md).split("-");return `${+d}.${+m}.`};
 function handelstag(n){const d=new Date();let k=0;while(k<n){d.setDate(d.getDate()+1);if(d.getDay()%6)k++}return d} // ohne Feiertage
 const tagTxt=d=>`${WT[d.getDay()]} ${d.getDate()}.${d.getMonth()+1}.`;
-const plus30=t=>{const [h,m]=t.split(":").map(Number),z=h*60+m+30;return String(Math.floor(z/60)%24).padStart(2,"0")+":"+String(z%60).padStart(2,"0")};
+const bisZeit=z=>z.bis||plus30(z.t),plus30=t=>{const [h,m]=t.split(":").map(Number),z=h*60+m+30;return String(Math.floor(z/60)%24).padStart(2,"0")+":"+String(z%60).padStart(2,"0")};
 function standTxt(x){const k=kurs(x);return `Stand ${uhr(D.t)} Uhr · Kurs von ${k.t?new Date(k.t).toLocaleString("de-DE",{weekday:"short",hour:"2-digit",minute:"2-digit"}):"–"}`}
 // Bester künftiger Einstieg: Tag (aus „meist nach N Tagen“) + Uhrzeit (aus dem Tagestief-Muster). Immer eine Schätzung.
 
@@ -394,7 +394,7 @@ function standTxt(x){const k=kurs(x);return `Stand ${uhr(D.t)} Uhr · Kurs von $
 function halte(x){const e=x.einstieg;if(!e)return null;const be=besterEinstieg(x),hi=(D.einstiegInfo&&D.einstiegInfo.halte)||{},H=x.platz&&x.H?x.H:(hi[e.z]||3);
   const start=be&&!be.jetzt&&be.tag!=="heute"?handelstag(Math.max(1,be.n)):new Date(),ende=new Date(start);let k=0;while(k<H){ende.setDate(ende.getDate()+1);if(ende.getDay()%6)k++}
   const st=(e.stat||{})[H],zt=e.zeit&&e.zeit.teuer;
-  return {H,start,ende,txt:`von ${be&&be.jetzt?"jetzt":tagTxt(start)} bis ca. ${tagTxt(ende)} (${H} Handelstage)`,raus:zt?zt.t:null,st,iso:`${ende.getFullYear()}-${String(ende.getMonth()+1).padStart(2,"0")}-${String(ende.getDate()).padStart(2,"0")}`}}
+  return {H,start,ende,txt:`von ${be&&be.jetzt?"jetzt":tagTxt(start)} bis ca. ${tagTxt(ende)} (${H} Handelstage)`,raus:zt?zt.t+(zt.bis?"–"+zt.bis:""):null,st,iso:`${ende.getFullYear()}-${String(ende.getMonth()+1).padStart(2,"0")}-${String(ende.getDate()).padStart(2,"0")}`}}
 const AUS_KURZ={fest3:"3 Tage halten",fest7:"7 Tage halten",s1:"Plus sichern, 1 Pkt.",s2:"Plus sichern, 2 Pkt.",s3:"Plus sichern, 3 Pkt.",s5:"Plus sichern, 5 Pkt.",n2:"Nachlauf 2 %",n3:"Nachlauf 3 %",n5:"Nachlauf 5 %",z2:"+2 % mitnehmen",z4:"+4 % mitnehmen"};
 function ausBox(x){const e=x.einstieg,a=e&&D.einstiegInfo&&D.einstiegInfo.aus&&D.einstiegInfo.aus[e.z];if(!a||!a.regeln||!a.best)return "";
   const r=a.regeln,b=r[a.best],f7=r.fest7,l=Object.entries(r).sort((p,q)=>q[1].avg-p[1].avg);
@@ -403,15 +403,15 @@ function ausBox(x){const e=x.einstieg,a=e&&D.einstiegInfo&&D.einstiegInfo.aus&&D
    <table class="austab"><tr><th>Regel</th><th>Ø nach Kosten</th><th>im Plus</th><th>Tage</th></tr>${l.map(([id,v])=>`<tr${id===a.best?' class="best"':""}><td>${esc(AUS_KURZ[id]||v.name)}</td><td class="${kl(v.avg)}">${v.avg>0?"+":v.avg<0?"−":"±"}${nf(Math.abs(v.avg),2)} %</td><td>${v.plus} %</td><td>${v.tage}</td></tr>`).join("")}</table>
    <p class="small muted">Alle Werte im Zustand „${esc(((D.einstiegInfo.zust||{})[e.z]||{}).n||e.z)}“, letztes Jahr, Schlusskurse, ${nf(b.n,0)} Fälle, Kosten wie eingestellt, ohne Steuer. „Nachlauf“ = warnen, wenn der Kurs X % unter dem Höchstkurs seit Kauf liegt. „Plus sichern“ = Linie nie unter Kaufkurs. Rückblick, keine Garantie.</p></details>`}
 function halteBox(x){const h=halte(x);if(!h)return "";
-  return `<div class="halte">⏳ Halten: <b>${esc(h.txt)}</b>${h.raus?`, am letzten Tag am ehesten gegen ${h.raus} Uhr verkaufen`:""}.<br><span class="small">Früher raus, wenn${x.noetig!=null?` dein Ziel (${pz(x.noetig,1)})`:" dein Ziel"} erreicht ist oder Gewinn- bzw. Verlustschutz auslöst.${h.st&&h.st.n?` Im Rückblick brachte dieser Zustand nach ${h.H} Tagen Ø ${pz(h.st.avg)} (${h.st.plus} % im Plus).`:""}</span></div>${ausBox(x)}`}
+  return `<div class="halte">⏳ Halten: <b>${esc(h.txt)}</b>${h.raus?`, am letzten Tag am ehesten ${h.raus} Uhr verkaufen`:""}.<br><span class="small">Früher raus, wenn${x.noetig!=null?` dein Ziel (${pz(x.noetig,1)})`:" dein Ziel"} erreicht ist oder Gewinn- bzw. Verlustschutz auslöst.${h.st&&h.st.n?` Im Rückblick brachte dieser Zustand nach ${h.H} Tagen Ø ${pz(h.st.avg)} (${h.st.plus} % im Plus).`:""}</span></div>${ausBox(x)}`}
 function besterEinstieg(x){const e=x.einstieg;if(!e)return null;const z=e.zeit&&e.zeit.best,st=e.stat||{},jetzt=new Date(),hm=jetzt.getHours()*60+jetzt.getMinutes(),wt=jetzt.getDay()%6!==0;
-  const fenster=z?`${z.t}–${plus30(z.t)} Uhr`:"";let tag,bed="",n=0;
+  const fenster=z?`${z.t}–${bisZeit(z)} Uhr`:"";let tag,bed="",n=0;
   let jetztDrin=false;
   if(e.z==="guenstig"||e.z==="wende"||e.z==="neutral"){const [h,m]=z?z.t.split(":").map(Number):[0,0];if(wt&&z&&hm<h*60+m+30){tag="heute";jetztDrin=hm>=h*60+m}else{tag=jetzt.getDay()===5||jetzt.getDay()===6||!wt?tagTxt(handelstag(1)):"morgen";n=1}
     if(e.z==="neutral")bed="kein besonderer Vorteil, nur die günstigste Uhrzeit"}
   else if(e.z==="ueberdehnt"){n=Math.max(1,st.medTage||5);tag=`um ${tagTxt(handelstag(n))}`;bed=`wenn der Kurs bis dahin in die Zone um ${dez(e.ziel)} ${cs(x)} gefallen ist${st.erreicht!=null?` (früher in ${st.erreicht} % der Fälle)`:""}`}
   else if(e.z==="messer"){n=Math.max(1,(st.medTage||3));tag=`frühestens um ${tagTxt(handelstag(n+1))}`;bed=`wenn der Kurs vorher an einem Tag über ${dez(e.ziel)} ${cs(x)} schließt`}
-  return {tag,fenster,bed,n,jetzt:jetztDrin,txt:jetztDrin?`jetzt (bis ${plus30(z.t)} Uhr)`:`${tag}${fenster?` · ${fenster}`:""}`}}
+  return {tag,fenster,bed,n,jetzt:jetztDrin,txt:jetztDrin?`jetzt (bis ${bisZeit(z)} Uhr)`:`${tag}${fenster?` · ${fenster}`:""}`}}
 // Überschrift je nach Uhrzeit: jetzt einsteigen, heute später, oder Vorankündigung für einen späteren Tag
 function zustandText(x){const e=x.einstieg,be=besterEinstieg(x);if(!(e.z==="guenstig"||e.z==="wende")||!be)return {i:ZICON[e.z],t:e.n,vor:false};
   if(be.jetzt)return {i:"🟢",t:"Jetzt einsteigen",vor:false};if(be.tag==="heute")return {i:"🟢",t:`Günstig – Einstieg heute ab ${e.zeit&&e.zeit.best?e.zeit.best.t:""} Uhr`,vor:false};
